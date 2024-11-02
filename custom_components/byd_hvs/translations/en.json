@@ -1,0 +1,39 @@
+{
+  "config": {
+    "title": "BYD HVS Battery",
+    "step": {
+      "user": {
+        "title": "Set up BYD HVS Battery",
+        "description": "Please enter the connection details for your BYD HVS Battery.",
+        "data": {
+          "ip_address": "IP Address",
+          "port": "Port",
+          "scan_interval": "Scan Interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "timeout": "Connection timed out",
+      "unknown": "An unknown error occurred",
+      "too_low": "Value is too low (minimum 10 seconds)"
+    },
+    "abort": {
+      "already_configured": "This BYD battery is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "BYD HVS Battery Options",
+        "description": "Configure the options for your BYD HVS Battery.",
+        "data": {
+          "scan_interval": "Scan Interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "too_low": "Value is too low (minimum 10 seconds)"
+    }
+  }
+}
