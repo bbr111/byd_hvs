@@ -58,6 +58,8 @@ class BYDHVSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required("ip_address", default=DEFAULT_IP_ADDRESS): str,
                 vol.Optional("port", default=DEFAULT_PORT): int,
                 vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): int,
+                vol.Optional("show_cell_voltage", default=True): bool,
+                vol.Optional("show_cell_temperature", default=True): bool,
             }
         )
 
@@ -92,7 +94,15 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
             else:
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
-                    data={**self.config_entry.data, "scan_interval": scan_interval},
+                    # data={**self.config_entry.data, "scan_interval": scan_interval},
+                    data={
+                        **self.config_entry.data,
+                        "scan_interval": scan_interval,
+                        "show_cell_temperature": user_input.get(
+                            "show_cell_temperature", True
+                        ),
+                        "show_cell_voltage": user_input.get("show_cell_voltage", True),
+                    },
                 )
                 await self.hass.config_entries.async_reload(self.config_entry.entry_id)
                 return self.async_create_entry(title="", data={})
@@ -105,6 +115,14 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
                         "scan_interval", DEFAULT_SCAN_INTERVAL
                     ),
                 ): int,
+                vol.Optional(
+                    "show_cell_voltage",
+                    default=self.config_entry.data.get("show_cell_voltage", True),
+                ): bool,
+                vol.Optional(
+                    "show_cell_temperature",
+                    default=self.config_entry.data.get("show_cell_temperature", True),
+                ): bool,
             }
         )
 

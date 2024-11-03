@@ -105,6 +105,8 @@ async def async_setup_entry(
     ip_address = config_entry.data["ip_address"]
     port = config_entry.data.get("port", 8080)
     scan_interval = config_entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL)
+    show_cell_voltage = config_entry.data.get("show_cell_voltage", True)
+    show_cell_temperature = config_entry.data.get("show_cell_temperature", True)
 
     byd_hvs = BYDHVS(ip_address, port)
 
@@ -153,22 +155,24 @@ async def async_setup_entry(
     )
 
     # Cell voltage sensors
-    cell_voltages = coordinator.data.get("cell_voltages", [])
-    sensors.extend(
-        [
-            BYDBatterySensor(coordinator, f"cell_voltage_{idx+1}", byd_hvs, idx)
-            for idx in range(len(cell_voltages))
-        ]
-    )
+    if show_cell_voltage:
+        cell_voltages = coordinator.data.get("cell_voltages", [])
+        sensors.extend(
+            [
+                BYDBatterySensor(coordinator, f"cell_voltage_{idx+1}", byd_hvs, idx)
+                for idx in range(len(cell_voltages))
+            ]
+        )
 
     # Cell temperature sensors
-    cell_temperatures = coordinator.data.get("cell_temperatures", [])
-    sensors.extend(
-        [
-            BYDBatterySensor(coordinator, f"cell_temperature_{idx+1}", byd_hvs, idx)
-            for idx in range(len(cell_temperatures))
-        ]
-    )
+    if show_cell_temperature:
+        cell_temperatures = coordinator.data.get("cell_temperatures", [])
+        sensors.extend(
+            [
+                BYDBatterySensor(coordinator, f"cell_temperature_{idx+1}", byd_hvs, idx)
+                for idx in range(len(cell_temperatures))
+            ]
+        )
 
     async_add_entities(sensors)
 

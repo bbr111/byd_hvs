@@ -1,7 +1,7 @@
 {
     "domain": "byd_hvs",
     "name": "BYD HVS Battery",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "documentation": "https://github.com/bbr111/byd_hvs",
     "dependencies": [],
     "codeowners": ["@bbr111"],

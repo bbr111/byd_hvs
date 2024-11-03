@@ -8,7 +8,9 @@
         "data": {
           "ip_address": "IP Address",
           "port": "Port",
-          "scan_interval": "Scan Interval (seconds)"
+          "scan_interval": "Scan Interval (seconds)",
+          "show_cell_voltage": "Show cell voltages",
+          "show_cell_temparature": "Show cell temparatures"
         }
       }
     },
@@ -28,7 +30,9 @@
         "title": "BYD HVS Battery Options",
         "description": "Configure the options for your BYD HVS Battery.",
         "data": {
-          "scan_interval": "Scan Interval (seconds)"
+          "scan_interval": "Scan Interval (seconds)",
+          "show_cell_voltage": "Show cell voltages",
+          "show_cell_temparature": "Show cell temparatures"
         }
       }
     },
