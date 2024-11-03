@@ -2,13 +2,20 @@
 
 import logging
 
+import bydhvs
 import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import callback
 
-from .bydhvs import BYDHVS, BYDHVSConnectionError, BYDHVSTimeoutError
-from .const import DEFAULT_IP_ADDRESS, DEFAULT_PORT, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    DEFAULT_IP_ADDRESS,
+    DEFAULT_PORT,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    SHOW_CELL_TEMPERATURE,
+    SHOW_CELL_VOLTAGE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,14 +39,14 @@ class BYDHVSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["scan_interval"] = "too_low"
             else:
                 # Attempt to connect to the battery
-                byd_hvs = BYDHVS(ip_address, port)
+                byd_hvs = bydhvs.BYDHVS(ip_address, port)
                 try:
                     await byd_hvs.poll()
                     serial_number = byd_hvs.hvsSerial
-                except BYDHVSTimeoutError as e:
+                except bydhvs.BYDHVSTimeoutError as e:
                     _LOGGER.error("Timeout connecting to the BYD battery: %s", e)
                     errors["base"] = "timeout"
-                except BYDHVSConnectionError as e:
+                except bydhvs.BYDHVSConnectionError as e:
                     _LOGGER.error("Error connecting to the BYD battery: %s", e)
                     errors["base"] = "cannot_connect"
                 except Exception:
@@ -49,7 +56,7 @@ class BYDHVSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     await self.async_set_unique_id(serial_number)
                     self._abort_if_unique_id_configured()
                     return self.async_create_entry(
-                        title=f"BYD Battery ({serial_number})",
+                        title=f"BYD Battery {(serial_number)}",
                         data=user_input,
                     )
 
@@ -58,8 +65,8 @@ class BYDHVSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required("ip_address", default=DEFAULT_IP_ADDRESS): str,
                 vol.Optional("port", default=DEFAULT_PORT): int,
                 vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): int,
-                vol.Optional("show_cell_voltage", default=True): bool,
-                vol.Optional("show_cell_temperature", default=True): bool,
+                vol.Optional(SHOW_CELL_VOLTAGE, default=True): bool,
+                vol.Optional(SHOW_CELL_TEMPERATURE, default=True): bool,
             }
         )
 
@@ -98,10 +105,10 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
                     data={
                         **self.config_entry.data,
                         "scan_interval": scan_interval,
-                        "show_cell_temperature": user_input.get(
-                            "show_cell_temperature", True
+                        SHOW_CELL_VOLTAGE: user_input.get(SHOW_CELL_VOLTAGE, True),
+                        SHOW_CELL_TEMPERATURE: user_input.get(
+                            SHOW_CELL_TEMPERATURE, True
                         ),
-                        "show_cell_voltage": user_input.get("show_cell_voltage", True),
                     },
                 )
                 await self.hass.config_entries.async_reload(self.config_entry.entry_id)
@@ -116,12 +123,12 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
                     ),
                 ): int,
                 vol.Optional(
-                    "show_cell_voltage",
-                    default=self.config_entry.data.get("show_cell_voltage", True),
+                    SHOW_CELL_VOLTAGE,
+                    default=self.config_entry.data.get(SHOW_CELL_VOLTAGE, True),
                 ): bool,
                 vol.Optional(
-                    "show_cell_temperature",
-                    default=self.config_entry.data.get("show_cell_temperature", True),
+                    SHOW_CELL_TEMPERATURE,
+                    default=self.config_entry.data.get(SHOW_CELL_TEMPERATURE, True),
                 ): bool,
             }
         )

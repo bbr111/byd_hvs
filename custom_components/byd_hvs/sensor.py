@@ -3,6 +3,8 @@
 from datetime import datetime, timedelta
 import logging
 
+import bydhvs
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -23,7 +25,6 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .bydhvs import BYDHVS
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ async def async_setup_entry(
     show_cell_voltage = config_entry.data.get("show_cell_voltage", True)
     show_cell_temperature = config_entry.data.get("show_cell_temperature", True)
 
-    byd_hvs = BYDHVS(ip_address, port)
+    byd_hvs = bydhvs.BYDHVS(ip_address, port)
 
     async def async_update_data():
         """Fetch data from the BYD HVS battery."""
@@ -253,8 +254,8 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
         """Return device information about this BYD battery."""
         return {
             "identifiers": {(DOMAIN, self._battery.hvsSerial)},
-            "name": "BYD Battery",
+            "name": f"BYD Battery {self._battery.hvsSerial}",
             "manufacturer": "BYD",
-            "model": self._battery.hvsBattType,
-            "sw_version": self._battery.hvsBMU,
+            "model": self._battery.hvsBattType_fromSerial,
+            "sw_version": self._battery.hvsBMS,
         }

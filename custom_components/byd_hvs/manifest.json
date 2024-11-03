@@ -1,11 +1,11 @@
 {
     "domain": "byd_hvs",
     "name": "BYD HVS Battery",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "documentation": "https://github.com/bbr111/byd_hvs",
     "dependencies": [],
     "codeowners": ["@bbr111"],
     "iot_class": "local_polling",
-    "requirements": [],
+    "requirements": ["bydhvs"],
     "config_flow": true
   }
