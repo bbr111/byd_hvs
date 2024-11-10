@@ -86,7 +86,7 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
 
     def __init__(self, config_entry) -> None:
         """Initialize BYDHVS options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Manage BYDHVS options."""
@@ -96,14 +96,12 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
 
             # Validate the polling interval
             if scan_interval < 10:
-                # errors["scan_interval"] = "too_low"
                 errors["base"] = "too_low"
             else:
                 self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    # data={**self.config_entry.data, "scan_interval": scan_interval},
+                    self._config_entry,
                     data={
-                        **self.config_entry.data,
+                        **self._config_entry.data,
                         "scan_interval": scan_interval,
                         SHOW_CELL_VOLTAGE: user_input.get(SHOW_CELL_VOLTAGE, True),
                         SHOW_CELL_TEMPERATURE: user_input.get(
@@ -111,24 +109,24 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
                         ),
                     },
                 )
-                await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+                await self.hass.config_entries.async_reload(self._config_entry.entry_id)
                 return self.async_create_entry(title="", data={})
 
         data_schema = vol.Schema(
             {
                 vol.Optional(
                     "scan_interval",
-                    default=self.config_entry.data.get(
+                    default=self._config_entry.data.get(
                         "scan_interval", DEFAULT_SCAN_INTERVAL
                     ),
                 ): int,
                 vol.Optional(
                     SHOW_CELL_VOLTAGE,
-                    default=self.config_entry.data.get(SHOW_CELL_VOLTAGE, True),
+                    default=self._config_entry.data.get(SHOW_CELL_VOLTAGE, True),
                 ): bool,
                 vol.Optional(
                     SHOW_CELL_TEMPERATURE,
-                    default=self.config_entry.data.get(SHOW_CELL_TEMPERATURE, True),
+                    default=self._config_entry.data.get(SHOW_CELL_TEMPERATURE, True),
                 ): bool,
             }
         )
