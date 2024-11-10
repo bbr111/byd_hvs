@@ -1,7 +1,6 @@
 {
   "title": "BYD HVS Battery",
   "config": {
-    "description": "BYD HVS Communicaton Modul",
     "step": {
       "user": {
         "title": "Set up BYD HVS Battery",
