@@ -1,7 +1,6 @@
 {
   "name": "BYD HVS Battery",
   "content_in_root": false,
-  "domains": ["byd_hvs"],
   "homeassistant": "2021.6.0",
   "render_readme": true,
   "iot_class": "Local Polling",
