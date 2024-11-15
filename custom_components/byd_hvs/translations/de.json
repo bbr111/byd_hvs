@@ -1,6 +1,6 @@
 {
-  "title": "BYD HVS Batterie",
   "config": {
+    "title": "BYD HVS Batterie",
     "step": {
       "user": {
         "title": "BYD HVS Batterie einrichten",
@@ -10,7 +10,9 @@
           "port": "Port",
           "scan_interval": "Abfrageintervall (Sekunden)",
           "show_cell_voltage": "Zeige Zellenspannungen",
-          "show_cell_temperature": "Zeige Zelltemperaturen"
+          "show_cell_temperature": "Zeige Zelltemperaturen",
+          "show_modules": "Zeige Modulinfo zur Zelle an",
+          "show_reset_counter": "Zellen pro Modul zurücksetzen"
         }
       }
     },
@@ -32,7 +34,9 @@
         "data": {
           "scan_interval": "Abfrageintervall (Sekunden)",
           "show_cell_voltage": "Zeige Zellenspannungen",
-          "show_cell_temperature": "Zeige Zelltemperaturen"
+          "show_cell_temperature": "Zeige Zelltemperaturen",
+          "show_modules": "Zeige Modulinfo zur Zelle an",
+          "show_reset_counter": "Zellen pro Modul zurücksetzen"
         }
       }
     },

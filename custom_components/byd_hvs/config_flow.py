@@ -15,6 +15,8 @@ from .const import (
     DOMAIN,
     SHOW_CELL_TEMPERATURE,
     SHOW_CELL_VOLTAGE,
+    SHOW_MODULES,
+    SHOW_RESET_COUNTER,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,6 +69,8 @@ class BYDHVSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional("scan_interval", default=DEFAULT_SCAN_INTERVAL): int,
                 vol.Optional(SHOW_CELL_VOLTAGE, default=True): bool,
                 vol.Optional(SHOW_CELL_TEMPERATURE, default=True): bool,
+                vol.Optional(SHOW_MODULES, default=False): bool,
+                vol.Optional(SHOW_RESET_COUNTER, default=False): bool,
             }
         )
 
@@ -107,6 +111,8 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
                         SHOW_CELL_TEMPERATURE: user_input.get(
                             SHOW_CELL_TEMPERATURE, True
                         ),
+                        SHOW_MODULES: user_input.get(SHOW_MODULES, False),
+                        SHOW_RESET_COUNTER: user_input.get(SHOW_RESET_COUNTER, False),
                     },
                 )
                 await self.hass.config_entries.async_reload(self._config_entry.entry_id)
@@ -127,6 +133,14 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(
                     SHOW_CELL_TEMPERATURE,
                     default=self._config_entry.data.get(SHOW_CELL_TEMPERATURE, True),
+                ): bool,
+                vol.Optional(
+                    SHOW_MODULES,
+                    default=self._config_entry.data.get(SHOW_MODULES, False),
+                ): bool,
+                vol.Optional(
+                    SHOW_RESET_COUNTER,
+                    default=self._config_entry.data.get(SHOW_RESET_COUNTER, False),
                 ): bool,
             }
         )
