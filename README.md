@@ -1,4 +1,4 @@
-# BYD HVS Battery Integration for Home Assistant
+# BYD HVS/HMS/LVS Battery Integration for Home Assistant
 
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-blue)](https://www.home-assistant.io)
 
