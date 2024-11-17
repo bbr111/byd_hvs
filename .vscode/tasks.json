@@ -1,0 +1,11 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "scripts/develop",
+            "type": "shell",
+            "command": "scripts/develop",
+            "problemMatcher": []
+        }
+    ]
+}
