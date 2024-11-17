@@ -1,6 +1,6 @@
 """Sensor platform for the BYD HVS Battery integration."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta  # type: ignore  # noqa: PGH003
 import logging
 
 import bydhvs
@@ -92,13 +92,13 @@ SENSOR_TYPES = {
     "bmu_firmware": ["BMU Firmware", "mdi:chip", None, None],
     "bms_firmware": ["BMS Firmware", "mdi:chip", None, None],
     "modules": ["Modules", "mdi:counter", None, None],
-    "ModuleCellCount": ["ModuleCellCount", "mdi:counter", None, None],
-    "ModuleCellTempCount": ["ModuleCellTempCount", "mdi:counter", None, None],
+    "module_cell_count": ["ModuleCellCount", "mdi:counter", None, None],
+    "module_cell_temp_count": ["ModuleCellTempCount", "mdi:counter", None, None],
     "towers": ["Towers", "mdi:counter", None, None],
     "grid_type": ["Grid Type", "mdi:transmission-tower", None, None],
     "error_number": ["Error Number", "mdi:alert-circle", None, None],
     "error_string": ["Error String", "mdi:alert-circle", None, None],
-    "param_T": ["Param T", "mdi:information-outline", None, None],
+    "param_t": ["Param T", "mdi:information-outline", None, None],
     "output_voltage": [
         "Output Voltage",
         "mdi:current-ac",
@@ -107,7 +107,7 @@ SENSOR_TYPES = {
     ],
     "charge_total": ["Charge Total", "mdi:battery-charging", "Ah", None],
     "discharge_total": ["Discharge Total", "mdi:battery-charging", "Ah", None],
-    "eta": ["ETA", "mdi:timer", None, None],
+    "eta": ["ETA", "mdi:timer", "%", None],
     "battery_type_from_serial": [
         "Battery Type From Serial",
         "mdi:information-outline",
@@ -121,54 +121,55 @@ SENSOR_TYPES = {
 }
 
 TOWER_SENSOR_TYPES = {
-    "balancingStatus": ["Balancing Status", "mdi:scale-balance", None, None],
-    "balancingCount": ["Balancing Count", "mdi:counter", None, None],
-    "maxCellVoltage_mV": [
+    "balancing_status": ["Balancing Status", "mdi:scale-balance", None, None],
+    "balancing_count": ["Balancing Count", "mdi:counter", None, None],
+    "max_cell_voltage_mv": [
         "Max Cell Voltage mV",
         "mdi:current-ac",
         UnitOfElectricPotential.MILLIVOLT,
         SensorDeviceClass.VOLTAGE,
     ],
-    "minCellVoltage_mV": [
+    "min_cell_voltage_mv": [
         "Min Cell Voltage mV",
         "mdi:current-ac",
         UnitOfElectricPotential.MILLIVOLT,
         SensorDeviceClass.VOLTAGE,
     ],
-    "maxCellVoltageCell": ["Voltage Max Cell No", "mdi:counter", None, None],
-    "minCellVoltageCell": ["Voltage Min Cell No", "mdi:counter", None, None],
-    "maxCellTemp": [
-        "Temperatur Max Cell",
+    "max_cell_voltage_cell": ["Voltage Max Cell No", "mdi:counter", None, None],
+    "min_cell_voltage_cell": ["Voltage Min Cell No", "mdi:counter", None, None],
+    "max_cell_temp": [
+        "Temperature Max Cell",
         "mdi:thermometer",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
     ],
-    "minCellTemp": [
-        "Temperatur Min Cell",
+    "min_cell_temp": [
+        "Temperature Min Cell",
         "mdi:thermometer",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
     ],
-    "maxCellTempCell": ["Temperature Max Cell No", "mdi:counter", None, None],
-    "minCellTempCell": ["Temperature Min Cell No", "mdi:counter", None, None],
-    "chargeTotal": ["Charge Total", "mdi:battery-charging", "Ah", None],
-    "dischargeTotal": ["ischarge Total", "mdi:battery-charging", None, None],
-    "eta": ["ETA", "mdi:timer", None, None],
-    "batteryVolt": [
+    "max_cell_temp_cell": ["Temperature Max Cell No", "mdi:counter", None, None],
+    "min_cell_temp_cell": ["Temperature Min Cell No", "mdi:counter", None, None],
+    "charge_total": ["Charge Total", "mdi:battery-charging", "Ah", None],
+    "discharge_total": ["Discharge Total", "mdi:battery-charging", "Ah", None],
+    "eta": ["ETA", "mdi:timer", "%", None],
+    "battery_volt": [
         "Battery Voltage",
         "mdi:car-battery",
         UnitOfElectricPotential.VOLT,
         SensorDeviceClass.VOLTAGE,
     ],
-    "outVolt": [
+    "out_volt": [
         "Output Voltage",
         "mdi:current-ac",
         UnitOfElectricPotential.VOLT,
         SensorDeviceClass.VOLTAGE,
     ],
-    "hvsSOCDiagnosis": ["SOC Diagnosis", "mdi:battery", "%", None],
+    "hvs_soc_diagnosis": ["SOC Diagnosis", "mdi:battery", "%", None],
     "soh": ["State of Health", "mdi:heart-pulse", "%", None],
     "state": ["State", "mdi:information-outline", None, None],
+    "state_string": ["State String", "mdi:information-outline", None, None],
 }
 
 
@@ -193,9 +194,7 @@ async def async_setup_entry(
 
     async def async_update_data():
         """Fetch data from the BYD HVS battery."""
-        _LOGGER.info(
-            "Starting data retrieval from the BYD HVS Battery at %s", datetime.now()
-        )
+        _LOGGER.debug("Starting data retrieval from the BYD HVS Battery")
 
         def validate_data(data):
             """Validate the retrieved data."""
@@ -206,11 +205,14 @@ async def async_setup_entry(
             await byd_hvs.poll()
             data = byd_hvs.get_data()
             validate_data(data)
-        except Exception as e:
-            _LOGGER.error("Error retrieving data at %s: %s", datetime.now(), e)
-            raise UpdateFailed(f"Error retrieving data: {e}") from e
+        except ConnectionError as e:
+            _LOGGER.error("Connection error: %s", e)
+            raise UpdateFailed(f"Connection error: {e}") from e
+        except TimeoutError as e:
+            _LOGGER.error("Timeout error: %s", e)
+            raise UpdateFailed(f"Timeout error: {e}") from e
         else:
-            _LOGGER.info("Data retrieval successfully completed at %s", datetime.now())
+            _LOGGER.debug("Data retrieval successfully completed")
             return data
 
     coordinator = DataUpdateCoordinator(
@@ -235,22 +237,6 @@ async def async_setup_entry(
         ]
     )
 
-    # towers = coordinator.data.get("tower_attributes", [])
-    # for tower_index, tower in enumerate(towers):
-    #     sensors.extend(
-    #         [
-    #             BYDBatterySensor(
-    #                 coordinator,
-    #                 sensor_type,
-    #                 byd_hvs,
-    #                 tower_index,
-    #                 0,
-    #                 "tower",
-    #             )
-    #             for sensor_type in TOWER_SENSOR_TYPES
-    #         ]
-    #     )
-
     towers = coordinator.data.get("tower_attributes", [])
     sensors.extend(
         [
@@ -270,9 +256,9 @@ async def async_setup_entry(
     # Cell voltage sensors
     if show_cell_voltage:
         towers = coordinator.data.get("tower_attributes", [])
-        moduleCellCount = coordinator.data.get("ModuleCellCount")
+        module_cell_count = coordinator.data.get("module_cell_count", 1)
         for tower_index, tower in enumerate(towers):
-            cell_voltages = tower.get("cellVoltages", [])
+            cell_voltages = tower.get("cell_voltages", [])
             max_cell_index = len(cell_voltages)
             if max_cell_index >= 100:
                 num_digits = 3
@@ -284,27 +270,27 @@ async def async_setup_entry(
 
             counter = 0
             for cell_index in range(len(cell_voltages)):
-                moduleNo = 0
+                module_no = 0
                 counter += 1
-                cellno = cell_index + 1
-                if show_reset_counter and counter > moduleCellCount:
+                cell_no = cell_index + 1
+                if show_reset_counter and counter > module_cell_count:
                     counter = 1
 
                 if show_modules:
-                    moduleNo = cell_index // moduleCellCount + 1
-                    cellno = f"{moduleNo}_{counter}"
+                    module_no = cell_index // module_cell_count + 1
+                    cell_no = f"{module_no}_{counter}"
 
                 sensors.extend(
                     [
                         BYDBatterySensor(
                             coordinator,
-                            f"cell_voltage_{tower_index+1}_{cellno}",
+                            f"cell_voltage_{tower_index+1}_{cell_no}",
                             byd_hvs,
                             tower_index,
                             cell_index,
                             "cell_voltage",
                             num_digits,
-                            moduleNo,
+                            module_no,
                             counter,
                         )
                     ]
@@ -314,10 +300,10 @@ async def async_setup_entry(
 
     if show_cell_temperature:
         towers = coordinator.data.get("tower_attributes", [])
-        moduleCellTempCount = coordinator.data.get("ModuleCellTempCount")
+        module_cell_temp_count = coordinator.data.get("module_cell_temp_count", 1)
         counter = 0
         for tower_index, tower in enumerate(towers):
-            cell_temperatures = tower.get("cellTemperatures", [])
+            cell_temperatures = tower.get("cell_temperatures", [])
             max_cell_index = len(cell_temperatures)
             if max_cell_index >= 100:
                 num_digits = 3
@@ -328,26 +314,26 @@ async def async_setup_entry(
                 num_digits = 2
 
             for cell_index in range(len(cell_temperatures)):
-                moduleNo = 0
+                module_no = 0
                 counter += 1
-                cellno = cell_index + 1
-                if show_reset_counter and counter > moduleCellTempCount:
+                cell_no = cell_index + 1
+                if show_reset_counter and counter > module_cell_temp_count:
                     counter = 1
                 if show_modules:
-                    moduleNo = cell_index // moduleCellTempCount + 1
-                    cellno = f"{moduleNo}_{counter}"
+                    module_no = cell_index // module_cell_temp_count + 1
+                    cell_no = f"{module_no}_{counter}"
 
                 sensors.extend(
                     [
                         BYDBatterySensor(
                             coordinator,
-                            f"cell_temperature_{tower_index+1}_{cellno}",
+                            f"cell_temperature_{tower_index+1}_{cell_no}",
                             byd_hvs,
                             tower_index,
                             cell_index,
                             "cell_temperature",
                             num_digits,
-                            moduleNo,
+                            module_no,
                             counter,
                         )
                     ]
@@ -361,15 +347,15 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator,
-        sensor_type,
-        battery,
+        coordinator: DataUpdateCoordinator,
+        sensor_type: str,
+        battery: bydhvs.BYDHVS,
         tower_index=None,
         cell_index=None,
         sensor_category=None,
-        num_digits=2,
-        module=0,
-        reset_counter=0,
+        num_digits: int = 2,
+        module: int = 0,
+        reset_counter: int = 0,
     ) -> None:
         """Initialize the sensor entity."""
         super().__init__(coordinator)
@@ -383,14 +369,15 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
         self._num_digits = num_digits
         self._module = module
         self._reset_counter = reset_counter
-        moduleNo = ""
+        module_no = ""
 
         if sensor_category == "cell_voltage":
             cell_index_formatted = f"{self._reset_counter:0{self._num_digits}d}"
             self._cell_index_formatted = cell_index_formatted
             if self._module > 0:
-                moduleNo = f" Modul {self._module}"
-            self._name = f"Cell Voltage Tower {tower_index+1}{moduleNo} Cell {cell_index_formatted}"
+                module_no = f" Module {self._module}"
+            self._name = f"""Cell Voltage Tower {tower_index+1}{
+                module_no} Cell {cell_index_formatted}"""
             self._icon = "mdi:current-dc"
             self._attr_native_unit_of_measurement = UnitOfElectricPotential.MILLIVOLT
             self._attr_device_class = SensorDeviceClass.VOLTAGE
@@ -398,8 +385,9 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
             cell_index_formatted = f"{self._reset_counter:0{self._num_digits}d}"
             self._cell_index_formatted = cell_index_formatted
             if self._module > 0:
-                moduleNo = f" Modul {self._module}"
-            self._name = f"Cell Temperature Tower {tower_index+1}{moduleNo} Cell {cell_index_formatted}"
+                module_no = f" Module {self._module}"
+            self._name = f"""Cell Temperature Tower {tower_index+1}{
+                module_no} Cell {cell_index_formatted}"""
             self._icon = "mdi:thermometer"
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -430,21 +418,22 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID for the sensor."""
-        hvsServial = self._battery.hvsSerial
+        hvs_serial = self._battery.hvs_serial
 
         if self._sensor_category == "tower":
             tower_index_formatted = f"{self._tower_index+1:01d}"
-            return f"byd_{hvsServial}_{self._sensor_type}_{tower_index_formatted}"
+            return f"byd_{hvs_serial}_{self._sensor_type}_{tower_index_formatted}"
 
         if self._sensor_category:
             # Format tower index as needed (assuming towers are less than 10)
             tower_index_formatted = f"{self._tower_index+1:01d}"
             return (
-                f"byd_{hvsServial}_{self._sensor_category}_"
-                f"{tower_index_formatted}_{self._module}_{self._cell_index_formatted}"
+                f"byd_{hvs_serial}_{self._sensor_category}_"
+                f"""{tower_index_formatted}_{self._module}_{
+                    self._cell_index_formatted}"""
             )
 
-        return f"byd_{hvsServial}_{self._sensor_type}"
+        return f"byd_{hvs_serial}_{self._sensor_type}"
 
     @property
     def icon(self):
@@ -457,26 +446,25 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
         return self._attr_native_unit_of_measurement
 
     @property
-    def state(self):
+    def native_value(self):
         """Return the state of the sensor."""
         data = self.coordinator.data
         towers = data.get("tower_attributes", [])
-        if self._sensor_category == "cell_voltage":
-            if self._tower_index < len(towers):
-                tower = towers[self._tower_index]
-                cell_voltages = tower.get("cellVoltages", [])
-                if self._cell_index < len(cell_voltages):
-                    return cell_voltages[self._cell_index]
-        elif self._sensor_category == "cell_temperature":
-            if self._tower_index < len(towers):
-                tower = towers[self._tower_index]
-                cell_temperatures = tower.get("cellTemperatures", [])
-                if self._cell_index < len(cell_temperatures):
-                    return cell_temperatures[self._cell_index]
-        elif self._sensor_category == "tower":
-            if self._tower_index < len(towers):
-                tower = towers[self._tower_index]
-                return tower[self._sensor_type]
+        if self._sensor_category == "cell_voltage" and self._tower_index < len(towers):
+            tower = towers[self._tower_index]
+            cell_voltages = tower.get("cellVoltages", [])
+            if self._cell_index < len(cell_voltages):
+                return cell_voltages[self._cell_index]
+        elif self._sensor_category == "cell_temperature" and self._tower_index < len(
+            towers
+        ):
+            tower = towers[self._tower_index]
+            cell_temperatures = tower.get("cellTemperatures", [])
+            if self._cell_index < len(cell_temperatures):
+                return cell_temperatures[self._cell_index]
+        elif self._sensor_category == "tower" and self._tower_index < len(towers):
+            tower = towers[self._tower_index]
+            return tower[self._sensor_type]
         elif self._sensor_type in data:
             return data[self._sensor_type]
         return None
@@ -485,9 +473,9 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
     def device_info(self):
         """Return device information about this BYD battery."""
         return {
-            "identifiers": {(DOMAIN, self._battery.hvsSerial)},
-            "name": f"BYD Battery {self._battery.hvsSerial}",
+            "identifiers": {(DOMAIN, self._battery.hvs_serial)},
+            "name": f"BYD Battery {self._battery.hvs_serial}",
             "manufacturer": "BYD",
-            "model": self._battery.hvsBattType_fromSerial,
-            "sw_version": self._battery.hvsBMS,
+            "model": self._battery.hvs_batt_type_from_serial,
+            "sw_version": self._battery.hvs_bms,
         }

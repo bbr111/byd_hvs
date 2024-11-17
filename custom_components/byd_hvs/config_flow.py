@@ -44,7 +44,7 @@ class BYDHVSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 byd_hvs = bydhvs.BYDHVS(ip_address, port)
                 try:
                     await byd_hvs.poll()
-                    serial_number = byd_hvs.hvsSerial
+                    serial_number = byd_hvs.hvs_serial
                 except bydhvs.BYDHVSTimeoutError as e:
                     _LOGGER.error("Timeout connecting to the BYD battery: %s", e)
                     errors["base"] = "timeout"
