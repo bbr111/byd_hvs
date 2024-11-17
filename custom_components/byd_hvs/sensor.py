@@ -452,14 +452,14 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
         towers = data.get("tower_attributes", [])
         if self._sensor_category == "cell_voltage" and self._tower_index < len(towers):
             tower = towers[self._tower_index]
-            cell_voltages = tower.get("cellVoltages", [])
+            cell_voltages = tower.get("cell_voltages", [])
             if self._cell_index < len(cell_voltages):
                 return cell_voltages[self._cell_index]
         elif self._sensor_category == "cell_temperature" and self._tower_index < len(
             towers
         ):
             tower = towers[self._tower_index]
-            cell_temperatures = tower.get("cellTemperatures", [])
+            cell_temperatures = tower.get("cell_temperatures", [])
             if self._cell_index < len(cell_temperatures):
                 return cell_temperatures[self._cell_index]
         elif self._sensor_category == "tower" and self._tower_index < len(towers):
