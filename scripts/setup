@@ -6,4 +6,22 @@ cd "$(dirname "$0")/.."
 
 python3 -m pip install --requirement requirements.txt
 sudo apt-get update
-sudo apt-get install -y libpcap0.8 libpcap0.8-dev
+sudo apt-get install -y libpcap0.8 libpcap0.8-dev \
+        bluez \
+        ffmpeg \
+        libudev-dev \
+        libavformat-dev \
+        libavcodec-dev \
+        libavdevice-dev \
+        libavutil-dev \
+        libgammu-dev \
+        libswscale-dev \
+        libswresample-dev \
+        libavfilter-dev \
+        libpcap-dev \
+        libturbojpeg0 \
+        libyaml-dev \
+        libxml2 \
+        git \
+        cmake
+sudo apt-get clean
