@@ -1,5 +1,5 @@
 {
-    "name": "ludeeus/integration_blueprint",
+    "name": "bbr111/byd_hvs",
     "image": "mcr.microsoft.com/devcontainers/python:1-3.12",
     "postCreateCommand": "scripts/setup",
     "forwardPorts": [
