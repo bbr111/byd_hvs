@@ -115,6 +115,12 @@ SENSOR_TYPES = {
         None,
     ],
     "battery_type": ["Battery Type", "mdi:information-outline", None, None],
+    "battery_type_string": [
+        "Battery Type String",
+        "mdi:information-outline",
+        None,
+        None,
+    ],
     "inverter_type": ["Inverter Type", "mdi:information-outline", None, None],
     "number_of_cells": ["Number of Cells", "mdi:counter", None, None],
     "number_of_temperatures": ["Number of Temperatures", "mdi:counter", None, None],
@@ -476,6 +482,6 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
             "identifiers": {(DOMAIN, self._battery.hvs_serial)},
             "name": f"BYD Battery {self._battery.hvs_serial}",
             "manufacturer": "BYD",
-            "model": self._battery.hvs_batt_type_from_serial,
+            "model": self._battery.hvs_batt_type_string,
             "sw_version": self._battery.hvs_bms,
         }
