@@ -44,7 +44,6 @@ This custom integration allows you to monitor and interact with your BYD HVS Bat
    custom_components/
    └── byd_hvs/
        ├── __init__.py
-       ├── bydhvs.py
        ├── config_flow.py
        ├── const.py
        ├── manifest.json
