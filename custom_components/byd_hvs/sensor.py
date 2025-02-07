@@ -210,6 +210,7 @@ async def async_setup_entry(
         try:
             await byd_hvs.poll()
             data = byd_hvs.get_data()
+            _LOGGER.debug("Data block: %s", data)
             validate_data(data)
         except ConnectionError as e:
             _LOGGER.error("Connection error: %s", e)
@@ -356,8 +357,8 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
         coordinator: DataUpdateCoordinator,
         sensor_type: str,
         battery: bydhvs.BYDHVS,
-        tower_index=None,
-        cell_index=None,
+        tower_index=1,
+        cell_index=1,
         sensor_category=None,
         num_digits: int = 2,
         module: int = 0,
