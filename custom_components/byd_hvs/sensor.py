@@ -5,17 +5,17 @@ import logging
 
 import bydhvs
 
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorEntity,
-    SensorStateClass,
-)
+from homeassistant.components.sensor import SensorEntity
+
+from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfPower,
+    UnitOfEnergy,
     UnitOfTemperature,
+    PERCENTAGE,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -37,7 +37,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 SENSOR_TYPES = {
-    "soc": ["State of Charge", "mdi:battery", "%", None],
+    "soc": ["State of Charge", "mdi:battery", PERCENTAGE, None],
     "power": ["Power", "mdi:flash", UnitOfPower.WATT, SensorDeviceClass.POWER],
     "max_voltage": [
         "Max Voltage",
@@ -87,7 +87,7 @@ SENSOR_TYPES = {
         UnitOfElectricPotential.VOLT,
         SensorDeviceClass.VOLTAGE,
     ],
-    "soh": ["State of Health", "mdi:heart-pulse", "%", None],
+    "soh": ["State of Health", "mdi:heart-pulse", PERCENTAGE, None],
     "serial_number": ["Serial Number", "mdi:identifier", None, None],
     "bmu_firmware": ["BMU Firmware", "mdi:chip", None, None],
     "bms_firmware": ["BMS Firmware", "mdi:chip", None, None],
@@ -105,9 +105,21 @@ SENSOR_TYPES = {
         UnitOfElectricPotential.VOLT,
         SensorDeviceClass.VOLTAGE,
     ],
-    "charge_total": ["Charge Total", "mdi:battery-charging", "Ah", None],
-    "discharge_total": ["Discharge Total", "mdi:battery-charging", "Ah", None],
-    "eta": ["ETA", "mdi:timer", "%", None],
+    "charge_total": [
+        "Charge Total",
+        "mdi:battery-charging",
+        UnitOfEnergy.KILO_WATT_HOUR,
+        SensorDeviceClass.ENERGY,
+        SensorStateClass.TOTAL_INCREASING,
+    ],
+    "discharge_total": [
+        "Discharge Total",
+        "mdi:battery-minus",
+        UnitOfEnergy.KILO_WATT_HOUR,
+        SensorDeviceClass.ENERGY,
+        SensorStateClass.TOTAL_INCREASING,
+    ],
+    "eta": ["ETA", "mdi:timer", PERCENTAGE, None],
     "battery_type_from_serial": [
         "Battery Type From Serial",
         "mdi:information-outline",
@@ -157,9 +169,21 @@ TOWER_SENSOR_TYPES = {
     ],
     "max_cell_temp_cell": ["Temperature Max Cell No", "mdi:counter", None, None],
     "min_cell_temp_cell": ["Temperature Min Cell No", "mdi:counter", None, None],
-    "charge_total": ["Charge Total", "mdi:battery-charging", "Ah", None],
-    "discharge_total": ["Discharge Total", "mdi:battery-charging", "Ah", None],
-    "eta": ["ETA", "mdi:timer", "%", None],
+    "charge_total": [
+        "Charge Total",
+        "mdi:battery-charging",
+        UnitOfEnergy.KILO_WATT_HOUR,
+        SensorDeviceClass.ENERGY,
+        SensorStateClass.TOTAL_INCREASING,
+    ],
+    "discharge_total": [
+        "Discharge Total",
+        "mdi:battery-minus",
+        UnitOfEnergy.KILO_WATT_HOUR,
+        SensorDeviceClass.ENERGY,
+        SensorStateClass.TOTAL_INCREASING,
+    ],
+    "eta": ["ETA", "mdi:timer", PERCENTAGE, None],
     "battery_volt": [
         "Battery Voltage",
         "mdi:car-battery",
@@ -172,8 +196,13 @@ TOWER_SENSOR_TYPES = {
         UnitOfElectricPotential.VOLT,
         SensorDeviceClass.VOLTAGE,
     ],
-    "hvs_soc_diagnosis": ["SOC Diagnosis", "mdi:battery", "%", None],
-    "soh": ["State of Health", "mdi:heart-pulse", "%", None],
+    "hvs_soc_diagnosis": [
+        "SOC Diagnosis",
+        "mdi:battery",
+        PERCENTAGE,
+        None,
+    ],
+    "soh": ["State of Health", "mdi:heart-pulse", PERCENTAGE, None],
     "state": ["State", "mdi:information-outline", None, None],
     "state_string": ["State String", "mdi:information-outline", None, None],
 }
@@ -291,7 +320,7 @@ async def async_setup_entry(
                     [
                         BYDBatterySensor(
                             coordinator,
-                            f"cell_voltage_{tower_index+1}_{cell_no}",
+                            f"cell_voltage_{tower_index + 1}_{cell_no}",
                             byd_hvs,
                             tower_index,
                             cell_index,
@@ -334,7 +363,7 @@ async def async_setup_entry(
                     [
                         BYDBatterySensor(
                             coordinator,
-                            f"cell_temperature_{tower_index+1}_{cell_no}",
+                            f"cell_temperature_{tower_index + 1}_{cell_no}",
                             byd_hvs,
                             tower_index,
                             cell_index,
@@ -383,8 +412,9 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
             self._cell_index_formatted = cell_index_formatted
             if self._module > 0:
                 module_no = f" Module {self._module}"
-            self._name = f"""Cell Voltage Tower {tower_index+1}{
-                module_no} Cell {cell_index_formatted}"""
+            self._name = f"""Cell Voltage Tower {tower_index + 1}{module_no} Cell {
+                cell_index_formatted
+            }"""
             self._icon = "mdi:current-dc"
             self._attr_native_unit_of_measurement = UnitOfElectricPotential.MILLIVOLT
             self._attr_device_class = SensorDeviceClass.VOLTAGE
@@ -393,16 +423,19 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
             self._cell_index_formatted = cell_index_formatted
             if self._module > 0:
                 module_no = f" Module {self._module}"
-            self._name = f"""Cell Temperature Tower {tower_index+1}{
-                module_no} Cell {cell_index_formatted}"""
+            self._name = f"""Cell Temperature Tower {tower_index + 1}{module_no} Cell {
+                cell_index_formatted
+            }"""
             self._icon = "mdi:thermometer"
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
         elif sensor_category == "tower":
-            self._name = f"Tower {tower_index+1} {TOWER_SENSOR_TYPES[sensor_type][0]}"
+            self._name = f"Tower {tower_index + 1} {TOWER_SENSOR_TYPES[sensor_type][0]}"
             self._icon = TOWER_SENSOR_TYPES[sensor_type][1]
             self._attr_native_unit_of_measurement = TOWER_SENSOR_TYPES[sensor_type][2]
             self._attr_device_class = TOWER_SENSOR_TYPES[sensor_type][3]
+            if len(TOWER_SENSOR_TYPES[sensor_type]) > 4:
+                self._attr_state_class = TOWER_SENSOR_TYPES[sensor_type][4]
         else:
             self._name = SENSOR_TYPES[sensor_type][0]
             self._icon = SENSOR_TYPES[sensor_type][1]
@@ -417,6 +450,9 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
         ):
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
+        if len(SENSOR_TYPES[sensor_type]) > 4:
+            self._attr_state_class = SENSOR_TYPES[sensor_type][4]
+
     @property
     def name(self):
         """Return the name of the sensor."""
@@ -428,16 +464,17 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
         hvs_serial = self._battery.hvs_serial
 
         if self._sensor_category == "tower":
-            tower_index_formatted = f"{self._tower_index+1:01d}"
+            tower_index_formatted = f"{self._tower_index + 1:01d}"
             return f"byd_{hvs_serial}_{self._sensor_type}_{tower_index_formatted}"
 
         if self._sensor_category:
             # Format tower index as needed (assuming towers are less than 10)
-            tower_index_formatted = f"{self._tower_index+1:01d}"
+            tower_index_formatted = f"{self._tower_index + 1:01d}"
             return (
                 f"byd_{hvs_serial}_{self._sensor_category}_"
                 f"""{tower_index_formatted}_{self._module}_{
-                    self._cell_index_formatted}"""
+                    self._cell_index_formatted
+                }"""
             )
 
         return f"byd_{hvs_serial}_{self._sensor_type}"
