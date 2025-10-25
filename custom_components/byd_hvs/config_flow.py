@@ -17,6 +17,8 @@ from .const import (
     SHOW_CELL_VOLTAGE,
     SHOW_MODULES,
     SHOW_RESET_COUNTER,
+    SHOW_TOWERS,
+    AGGREGATE_MODULES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,15 +46,17 @@ class BYDHVSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 byd_hvs = bydhvs.BYDHVS(ip_address, port)
                 try:
                     await byd_hvs.poll()
-                    serial_number = byd_hvs.hvs_serial
+                    serial_number = getattr(byd_hvs, "hvs_serial", None)
+                    if not serial_number:
+                        raise ValueError("Missing serial number after poll")
                 except bydhvs.BYDHVSTimeoutError as e:
                     _LOGGER.error("Timeout connecting to the BYD battery: %s", e)
                     errors["base"] = "timeout"
                 except bydhvs.BYDHVSConnectionError as e:
                     _LOGGER.error("Error connecting to the BYD battery: %s", e)
                     errors["base"] = "cannot_connect"
-                except Exception:
-                    _LOGGER.exception("Unexpected error")
+                except ValueError as e:
+                    _LOGGER.exception("Validation error: %s", e)
                     errors["base"] = "unknown"
                 else:
                     await self.async_set_unique_id(serial_number)
@@ -71,6 +75,8 @@ class BYDHVSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(SHOW_CELL_TEMPERATURE, default=True): bool,
                 vol.Optional(SHOW_MODULES, default=False): bool,
                 vol.Optional(SHOW_RESET_COUNTER, default=False): bool,
+                vol.Optional(SHOW_TOWERS, default=True): bool,
+                vol.Optional(AGGREGATE_MODULES, default=False): bool,
             }
         )
 
@@ -113,6 +119,8 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
                         ),
                         SHOW_MODULES: user_input.get(SHOW_MODULES, False),
                         SHOW_RESET_COUNTER: user_input.get(SHOW_RESET_COUNTER, False),
+                        SHOW_TOWERS: user_input.get(SHOW_TOWERS, True),
+                        AGGREGATE_MODULES: user_input.get(AGGREGATE_MODULES, False),
                     },
                 )
                 await self.hass.config_entries.async_reload(self._config_entry.entry_id)
@@ -141,6 +149,14 @@ class BYDHVSOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(
                     SHOW_RESET_COUNTER,
                     default=self._config_entry.data.get(SHOW_RESET_COUNTER, False),
+                ): bool,
+                vol.Optional(
+                    SHOW_TOWERS,
+                    default=self._config_entry.data.get(SHOW_TOWERS, True),
+                ): bool,
+                vol.Optional(
+                    AGGREGATE_MODULES,
+                    default=self._config_entry.data.get(AGGREGATE_MODULES, False),
                 ): bool,
             }
         )

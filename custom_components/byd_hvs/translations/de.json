@@ -11,8 +11,10 @@
           "scan_interval": "Abfrageintervall (Sekunden)",
           "show_cell_voltage": "Zeige Zellenspannungen",
           "show_cell_temperature": "Zeige Zelltemperaturen",
-          "show_modules": "Zeige Modulinfo zur Zelle an",
-          "show_reset_counter": "Zellen pro Modul zurücksetzen"
+          "show_modules": "Modulnummer auf Zellebene anzeigen",
+          "show_reset_counter": "Zellnummerierung pro Modul neu beginnen",
+          "show_towers": "Turminformationen anzeigen",
+          "aggregate_modules": "Zelldaten pro Modul aggregieren (reduziert die Anzahl der Entitäten)"
         }
       }
     },
@@ -35,8 +37,10 @@
           "scan_interval": "Abfrageintervall (Sekunden)",
           "show_cell_voltage": "Zeige Zellenspannungen",
           "show_cell_temperature": "Zeige Zelltemperaturen",
-          "show_modules": "Zeige Modulinfo zur Zelle an",
-          "show_reset_counter": "Zellen pro Modul zurücksetzen"
+          "show_modules": "Modulnummer auf Zellebene anzeigen",
+          "show_reset_counter": "Zellnummerierung pro Modul neu beginnen",
+          "show_towers": "Turminformationen anzeigen",
+          "aggregate_modules": "Zelldaten pro Modul aggregieren (reduziert die Anzahl der Entitäten)"
         }
       }
     },
