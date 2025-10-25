@@ -3,7 +3,9 @@
 from datetime import timedelta  # type: ignore  # noqa: PGH003
 import logging
 
+import asyncio
 import bydhvs
+from bydhvs import BYDHVSConnectionError, BYDHVSTimeoutError, BYDHVSError
 
 from homeassistant.components.sensor import SensorEntity
 
@@ -241,15 +243,23 @@ async def async_setup_entry(
             data = byd_hvs.get_data()
             _LOGGER.debug("Data block: %s", data)
             validate_data(data)
-        except ConnectionError as e:
-            _LOGGER.error("Connection error: %s", e)
-            raise UpdateFailed(f"Connection error: {e}") from e
-        except TimeoutError as e:
-            _LOGGER.error("Timeout error: %s", e)
-            raise UpdateFailed(f"Timeout error: {e}") from e
-        else:
             _LOGGER.debug("Data retrieval successfully completed")
             return data
+        except (BYDHVSConnectionError, BYDHVSTimeoutError) as e:
+            _LOGGER.warning("Connection or timeout issue with BYD HVS Battery: %s", e)
+            raise UpdateFailed(f"Connection error while polling BYD HVS: {e}") from e
+
+        except BYDHVSError as e:
+            _LOGGER.error("General BYD HVS error during poll: %s", e)
+            raise UpdateFailed(f"BYD HVS error: {e}") from e
+
+        except asyncio.TimeoutError as e:
+            _LOGGER.warning("Async timeout while polling BYD HVS: %s", e)
+            raise UpdateFailed(f"Polling timeout: {e}") from e
+
+        except Exception as e:
+            _LOGGER.exception("Unexpected exception while polling BYD HVS: %s", e)
+            raise UpdateFailed(f"Unexpected BYD HVS error: {e}") from e
 
     coordinator = DataUpdateCoordinator(
         hass,
@@ -511,7 +521,15 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
                 return cell_temperatures[self._cell_index]
         elif self._sensor_category == "tower" and self._tower_index < len(towers):
             tower = towers[self._tower_index]
-            return tower[self._sensor_type]
+            if isinstance(tower, dict):
+                return tower.get(self._sensor_type)
+            _LOGGER.warning(
+                "Tower data malformed for sensor '%s' (tower %d): %s",
+                self._sensor_type,
+                self._tower_index,
+                tower,
+            )
+            return None
         elif self._sensor_type in data:
             return data[self._sensor_type]
         return None
