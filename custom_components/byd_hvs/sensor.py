@@ -233,33 +233,54 @@ async def async_setup_entry(
         """Fetch data from the BYD HVS battery."""
         _LOGGER.debug("Starting data retrieval from the BYD HVS Battery")
 
-        def validate_data(data):
-            """Validate the retrieved data."""
-            if not data:
-                raise UpdateFailed("No data received")
-
         try:
             await byd_hvs.poll()
             data = byd_hvs.get_data()
+
+            if not data:
+                _LOGGER.warning(
+                    "No data received from BYD HVS, keeping previous values"
+                )
+                return coordinator.data or {}
+
+            # Validate structure
+            if "tower_attributes" not in data or not isinstance(
+                data["tower_attributes"], list
+            ):
+                _LOGGER.warning(
+                    "Malformed data: tower_attributes missing or invalid → %s", data
+                )
+                return coordinator.data or {}
+
             _LOGGER.debug("Data block: %s", data)
-            validate_data(data)
             _LOGGER.debug("Data retrieval successfully completed")
+
             return data
+
         except (BYDHVSConnectionError, BYDHVSTimeoutError) as e:
-            _LOGGER.warning("Connection or timeout issue with BYD HVS Battery: %s", e)
-            raise UpdateFailed(f"Connection error while polling BYD HVS: {e}") from e
+            _LOGGER.warning(
+                "Connection/timeout issue with BYD HVS @ %s:%s – %s",
+                ip_address,
+                port,
+                e,
+            )
+            return coordinator.data or {}
 
         except BYDHVSError as e:
-            _LOGGER.error("General BYD HVS error during poll: %s", e)
-            raise UpdateFailed(f"BYD HVS error: {e}") from e
+            _LOGGER.error("General BYD HVS error @ %s:%s – %s", ip_address, port, e)
+            return coordinator.data or {}
 
         except asyncio.TimeoutError as e:
-            _LOGGER.warning("Async timeout while polling BYD HVS: %s", e)
-            raise UpdateFailed(f"Polling timeout: {e}") from e
+            _LOGGER.warning(
+                "Async timeout while polling BYD HVS @ %s:%s – %s", ip_address, port, e
+            )
+            return coordinator.data or {}
 
-        except Exception as e:
-            _LOGGER.exception("Unexpected exception while polling BYD HVS: %s", e)
-            raise UpdateFailed(f"Unexpected BYD HVS error: {e}") from e
+        except (ValueError, AttributeError, TypeError) as e:
+            _LOGGER.exception(
+                "Data processing error from BYD HVS @ %s:%s – %s", ip_address, port, e
+            )
+            return coordinator.data or {}
 
     coordinator = DataUpdateCoordinator(
         hass,
@@ -269,11 +290,18 @@ async def async_setup_entry(
         update_interval=timedelta(seconds=scan_interval),
     )
 
-    await coordinator.async_config_entry_first_refresh()
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except UpdateFailed as err:
+        _LOGGER.warning(
+            "Initial data load from BYD HVS failed: %s — sensors will "
+            "update automatically when data becomes available",
+            err,
+        )
 
     hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
 
-    sensors = []
+    sensors: list[BYDBatterySensor] = []
 
     # General sensors
     sensors.extend(
@@ -284,6 +312,9 @@ async def async_setup_entry(
     )
 
     towers = coordinator.data.get("tower_attributes", [])
+    if not towers:
+        _LOGGER.debug("No tower data available yet; will populate on next update")
+
     sensors.extend(
         [
             BYDBatterySensor(
@@ -505,7 +536,7 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self):
         """Return the state of the sensor."""
-        data = self.coordinator.data
+        data = self.coordinator.data or {}
         towers = data.get("tower_attributes", [])
         if self._sensor_category == "cell_voltage" and self._tower_index < len(towers):
             tower = towers[self._tower_index]
