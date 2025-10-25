@@ -450,7 +450,10 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
         ):
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
-        if len(SENSOR_TYPES[sensor_type]) > 4:
+        if self._sensor_category == "tower":
+            if len(TOWER_SENSOR_TYPES.get(sensor_type, [])) > 4:
+                self._attr_state_class = TOWER_SENSOR_TYPES[sensor_type][4]
+        elif sensor_type in SENSOR_TYPES and len(SENSOR_TYPES[sensor_type]) > 4:
             self._attr_state_class = SENSOR_TYPES[sensor_type][4]
 
     @property
