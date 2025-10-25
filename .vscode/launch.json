@@ -15,6 +15,12 @@
                 "-c",
                 "config"
             ],
+            "env": {
+                "PYTHONASYNCIODEBUG": "1",
+                "PYTHONUNBUFFERED": "1",
+                "TZ": "Europe/Berlin",
+                "HASS_FRONTEND_RELOAD": "1"
+            },
             "preLaunchTask": "scripts/develop"
         },
     ]
