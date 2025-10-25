@@ -12,7 +12,9 @@
           "show_cell_voltage": "Show cell voltages",
           "show_cell_temperature": "Show cell temperatures",
           "show_modules": "Show module number at cell level",
-          "show_reset_counter": "Reset cell counter per module"
+          "show_reset_counter": "Reset cell counter per module",
+          "show_towers": "Show Tower info",
+          "aggregate_modules": "Aggregate cell data per module (reduces entity count)"
         }
       }
     },
@@ -36,7 +38,9 @@
           "show_cell_voltage": "Show cell voltages",
           "show_cell_temparature": "Show cell temparatures",
           "show_modules": "Show Modulinfo at Cell Level",
-          "show_reset_counter": "Reset Cell Counter per Module"
+          "show_reset_counter": "Reset Cell Counter per Module",
+          "show_towers": "Show Tower info",
+          "aggregate_modules": "Aggregate cell data per module (reduces entity count)"
         }
       }
     },

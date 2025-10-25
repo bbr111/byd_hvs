@@ -34,6 +34,8 @@ from .const import (
     SHOW_CELL_VOLTAGE,
     SHOW_MODULES,
     SHOW_RESET_COUNTER,
+    SHOW_TOWERS,
+    AGGREGATE_MODULES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -226,6 +228,8 @@ async def async_setup_entry(
     show_cell_temperature = config_entry.data.get(SHOW_CELL_TEMPERATURE, True)
     show_modules = config_entry.data.get(SHOW_MODULES, False)
     show_reset_counter = config_entry.data.get(SHOW_RESET_COUNTER, False)
+    show_towers = config_entry.data.get(SHOW_TOWERS, True)
+    aggregate_modules = config_entry.data.get(AGGREGATE_MODULES, False)
 
     byd_hvs = bydhvs.BYDHVS(ip_address, port)
 
@@ -301,7 +305,7 @@ async def async_setup_entry(
 
     hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
 
-    sensors: list[BYDBatterySensor] = []
+    sensors: list[SensorEntity] = []
 
     # General sensors
     sensors.extend(
@@ -315,20 +319,22 @@ async def async_setup_entry(
     if not towers:
         _LOGGER.debug("No tower data available yet; will populate on next update")
 
-    sensors.extend(
-        [
-            BYDBatterySensor(
-                coordinator,
-                sensor_type,
-                byd_hvs,
-                tower_index,
-                0,
-                "tower",
-            )
-            for tower_index in range(len(towers))
-            for sensor_type in TOWER_SENSOR_TYPES
-        ]
-    )
+    # Tower sensors
+    if show_towers:
+        sensors.extend(
+            [
+                BYDBatterySensor(
+                    coordinator,
+                    sensor_type,
+                    byd_hvs,
+                    tower_index,
+                    0,
+                    "tower",
+                )
+                for tower_index in range(len(towers))
+                for sensor_type in TOWER_SENSOR_TYPES
+            ]
+        )
 
     # Cell voltage sensors
     if show_cell_voltage:
@@ -416,17 +422,78 @@ async def async_setup_entry(
                     ]
                 )
 
+    if aggregate_modules:
+        _LOGGER.debug(
+            "Aggregate enabled: %s | Towers found: %s",
+            aggregate_modules,
+            len(coordinator.data.get("tower_attributes", [])),
+        )
+        towers = coordinator.data.get("tower_attributes", [])
+        module_cell_count = coordinator.data.get("module_cell_count", 1)
+        module_cell_temp_count = coordinator.data.get("module_cell_temp_count", 1)
+
+        for tower_index, tower in enumerate(towers):
+            cell_voltages = tower.get("cell_voltages", [])
+            cell_temps = tower.get("cell_temperatures", [])
+            num_modules = max(
+                len(cell_voltages) // module_cell_count,
+                len(cell_temps) // module_cell_temp_count,
+                1,
+            )
+
+            for module_index in range(num_modules):
+                start_v = module_index * module_cell_count
+                end_v = start_v + module_cell_count
+                module_voltages = cell_voltages[start_v:end_v]
+
+                start_t = module_index * module_cell_temp_count
+                end_t = start_t + module_cell_temp_count
+                module_temps = cell_temps[start_t:end_t]
+
+                if not module_voltages and not module_temps:
+                    continue
+
+                sensors.append(
+                    BYDModuleAggregateSensor(
+                        coordinator,
+                        module_index,
+                        tower_index,
+                        byd_hvs,
+                        module_voltages,
+                        module_temps,
+                    )
+                )
+
     async_add_entities(sensors)
 
 
-class BYDBatterySensor(CoordinatorEntity, SensorEntity):
+class BYDBaseSensor(CoordinatorEntity, SensorEntity):
+    """Base class for BYD HVS sensors providing shared device_info."""
+
+    def __init__(self, coordinator, battery: bydhvs.BYDHVS):
+        super().__init__(coordinator)
+        self._battery = battery
+
+    @property
+    def device_info(self):
+        """Return consistent device information for all BYD sensors."""
+        return {
+            "identifiers": {(DOMAIN, self._battery.hvs_serial)},
+            "name": f"BYD Battery {self._battery.hvs_serial}",
+            "manufacturer": "BYD",
+            "model": self._battery.hvs_batt_type_string,
+            "sw_version": self._battery.hvs_bms,
+        }
+
+
+class BYDBatterySensor(BYDBaseSensor):
     """Representation of a BYD HVS Battery sensor."""
 
     def __init__(
         self,
         coordinator: DataUpdateCoordinator,
         sensor_type: str,
-        battery: bydhvs.BYDHVS,
+        battery,
         tower_index=1,
         cell_index=1,
         sensor_category=None,
@@ -435,8 +502,7 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
         reset_counter: int = 0,
     ) -> None:
         """Initialize the sensor entity."""
-        super().__init__(coordinator)
-        self._battery = battery
+        super().__init__(coordinator, battery)
         self._sensor_type = sensor_type
         self._tower_index = tower_index  # For cell voltages and temperatures
         self._cell_index = cell_index  # For cell voltages and temperatures
@@ -565,13 +631,66 @@ class BYDBatterySensor(CoordinatorEntity, SensorEntity):
             return data[self._sensor_type]
         return None
 
+
+class BYDModuleAggregateSensor(BYDBaseSensor):
+    """Aggregated module-level sensor combining voltage and temperature data."""
+
+    def __init__(
+        self,
+        coordinator,
+        module_index,
+        tower_index,
+        battery,
+        voltages,
+        temperatures,
+    ):
+        super().__init__(coordinator, battery)
+        self._module_index = module_index
+        self._tower_index = tower_index
+        self._voltages = voltages or []
+        self._temperatures = temperatures or []
+        self._name = f"Tower {tower_index + 1} Module {module_index + 1}"
+        self._icon = "mdi:battery"
+        self._attr_native_unit_of_measurement = UnitOfElectricPotential.MILLIVOLT
+        self._attr_device_class = SensorDeviceClass.VOLTAGE
+
     @property
-    def device_info(self):
-        """Return device information about this BYD battery."""
-        return {
-            "identifiers": {(DOMAIN, self._battery.hvs_serial)},
-            "name": f"BYD Battery {self._battery.hvs_serial}",
-            "manufacturer": "BYD",
-            "model": self._battery.hvs_batt_type_string,
-            "sw_version": self._battery.hvs_bms,
-        }
+    def name(self):
+        """Return the name of the sensor."""
+        return f"BYD {self._name}"
+
+    @property
+    def unique_id(self):
+        """Return a unique ID for the aggregated module sensor."""
+        hvs_serial = getattr(self._battery, "hvs_serial", "unknown")
+        return f"byd_{hvs_serial}_tower{self._tower_index + 1}_module{self._module_index + 1}"
+
+    @property
+    def native_value(self):
+        """Return the total module voltage."""
+        if not self._voltages:
+            return None
+        return round(sum(self._voltages), 2)
+
+    @property
+    def extra_state_attributes(self):
+        """Return all per-cell voltages and temperatures as attributes."""
+        attrs = {}
+        if self._voltages:
+            attrs["cell_voltages"] = self._voltages
+            attrs["max_voltage"] = max(self._voltages)
+            attrs["min_voltage"] = min(self._voltages)
+            attrs["avg_voltage"] = round(sum(self._voltages) / len(self._voltages), 3)
+        if self._temperatures:
+            attrs["cell_temperatures"] = self._temperatures
+            attrs["max_temperature"] = max(self._temperatures)
+            attrs["min_temperature"] = min(self._temperatures)
+            attrs["avg_temperature"] = round(
+                sum(self._temperatures) / len(self._temperatures), 3
+            )
+        return attrs
+
+    @property
+    def icon(self):
+        """Return the icon."""
+        return self._icon
