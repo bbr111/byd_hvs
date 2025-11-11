@@ -200,6 +200,12 @@ TOWER_SENSOR_TYPES = {
         UnitOfElectricPotential.VOLT,
         SensorDeviceClass.VOLTAGE,
     ],
+    "current": [
+        "Current",
+        "mdi:current-dc",
+        UnitOfElectricCurrent.AMPERE,
+        SensorDeviceClass.CURRENT,
+    ],
     "hvs_soc_diagnosis": [
         "SOC Diagnosis",
         "mdi:battery",
