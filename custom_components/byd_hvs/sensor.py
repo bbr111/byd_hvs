@@ -41,7 +41,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 SENSOR_TYPES = {
-    "soc": ["State of Charge", "mdi:battery", PERCENTAGE, None],
+    "soc": ["State of Charge", "mdi:battery", PERCENTAGE, SensorDeviceClass.BATTERY],
     "power": ["Power", "mdi:flash", UnitOfPower.WATT, SensorDeviceClass.POWER],
     "max_voltage": [
         "Max Voltage",
