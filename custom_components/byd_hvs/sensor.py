@@ -1,6 +1,6 @@
 """Sensor platform for the BYD HVS Battery integration."""
 
-from datetime import timedelta  # type: ignore  # noqa: PGH003
+from datetime import timedelta
 import logging
 
 import asyncio
@@ -369,20 +369,18 @@ async def async_setup_entry(
                     module_no = cell_index // module_cell_count + 1
                     cell_no = f"{module_no}_{counter}"
 
-                sensors.extend(
-                    [
-                        BYDBatterySensor(
-                            coordinator,
-                            f"cell_voltage_{tower_index + 1}_{cell_no}",
-                            byd_hvs,
-                            tower_index,
-                            cell_index,
-                            "cell_voltage",
-                            num_digits,
-                            module_no,
-                            counter,
-                        )
-                    ]
+                sensors.append(
+                    BYDBatterySensor(
+                        coordinator,
+                        f"cell_voltage_{tower_index + 1}_{cell_no}",
+                        byd_hvs,
+                        tower_index,
+                        cell_index,
+                        "cell_voltage",
+                        num_digits,
+                        module_no,
+                        counter,
+                    )
                 )
 
     # Cell temperature sensors
@@ -390,8 +388,8 @@ async def async_setup_entry(
     if show_cell_temperature:
         towers = coordinator.data.get("tower_attributes", [])
         module_cell_temp_count = coordinator.data.get("module_cell_temp_count", 1)
-        counter = 0
         for tower_index, tower in enumerate(towers):
+            counter = 0
             cell_temperatures = tower.get("cell_temperatures", [])
             max_cell_index = len(cell_temperatures)
             if max_cell_index >= 100:
@@ -412,20 +410,18 @@ async def async_setup_entry(
                     module_no = cell_index // module_cell_temp_count + 1
                     cell_no = f"{module_no}_{counter}"
 
-                sensors.extend(
-                    [
-                        BYDBatterySensor(
-                            coordinator,
-                            f"cell_temperature_{tower_index + 1}_{cell_no}",
-                            byd_hvs,
-                            tower_index,
-                            cell_index,
-                            "cell_temperature",
-                            num_digits,
-                            module_no,
-                            counter,
-                        )
-                    ]
+                sensors.append(
+                    BYDBatterySensor(
+                        coordinator,
+                        f"cell_temperature_{tower_index + 1}_{cell_no}",
+                        byd_hvs,
+                        tower_index,
+                        cell_index,
+                        "cell_temperature",
+                        num_digits,
+                        module_no,
+                        counter,
+                    )
                 )
 
     if aggregate_modules:
@@ -555,19 +551,26 @@ class BYDBatterySensor(BYDBaseSensor):
             self._attr_native_unit_of_measurement = SENSOR_TYPES[sensor_type][2]
             self._attr_device_class = SENSOR_TYPES[sensor_type][3]
 
-        if self._attr_device_class in (
+        # Set state_class: explicit definitions take precedence over defaults
+        if self._sensor_category == "tower":
+            if len(TOWER_SENSOR_TYPES.get(sensor_type, [])) > 4:
+                self._attr_state_class = TOWER_SENSOR_TYPES[sensor_type][4]
+            elif self._attr_device_class in (
+                SensorDeviceClass.TEMPERATURE,
+                SensorDeviceClass.VOLTAGE,
+                SensorDeviceClass.CURRENT,
+                SensorDeviceClass.POWER,
+            ):
+                self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif sensor_type in SENSOR_TYPES and len(SENSOR_TYPES[sensor_type]) > 4:
+            self._attr_state_class = SENSOR_TYPES[sensor_type][4]
+        elif self._attr_device_class in (
             SensorDeviceClass.TEMPERATURE,
             SensorDeviceClass.VOLTAGE,
             SensorDeviceClass.CURRENT,
             SensorDeviceClass.POWER,
         ):
             self._attr_state_class = SensorStateClass.MEASUREMENT
-
-        if self._sensor_category == "tower":
-            if len(TOWER_SENSOR_TYPES.get(sensor_type, [])) > 4:
-                self._attr_state_class = TOWER_SENSOR_TYPES[sensor_type][4]
-        elif sensor_type in SENSOR_TYPES and len(SENSOR_TYPES[sensor_type]) > 4:
-            self._attr_state_class = SENSOR_TYPES[sensor_type][4]
 
     @property
     def name(self):
@@ -586,12 +589,7 @@ class BYDBatterySensor(BYDBaseSensor):
         if self._sensor_category:
             # Format tower index as needed (assuming towers are less than 10)
             tower_index_formatted = f"{self._tower_index + 1:01d}"
-            return (
-                f"byd_{hvs_serial}_{self._sensor_category}_"
-                f"""{tower_index_formatted}_{self._module}_{
-                    self._cell_index_formatted
-                }"""
-            )
+            return f"byd_{hvs_serial}_{self._sensor_category}_{tower_index_formatted}_{self._module}_{self._cell_index_formatted}"
 
         return f"byd_{hvs_serial}_{self._sensor_type}"
 
@@ -610,32 +608,37 @@ class BYDBatterySensor(BYDBaseSensor):
         """Return the state of the sensor."""
         data = self.coordinator.data or {}
         towers = data.get("tower_attributes", [])
-        if self._sensor_category == "cell_voltage" and self._tower_index < len(towers):
-            tower = towers[self._tower_index]
-            cell_voltages = tower.get("cell_voltages", [])
-            if self._cell_index < len(cell_voltages):
-                return cell_voltages[self._cell_index]
-        elif self._sensor_category == "cell_temperature" and self._tower_index < len(
-            towers
-        ):
-            tower = towers[self._tower_index]
-            cell_temperatures = tower.get("cell_temperatures", [])
-            if self._cell_index < len(cell_temperatures):
-                return cell_temperatures[self._cell_index]
-        elif self._sensor_category == "tower" and self._tower_index < len(towers):
-            tower = towers[self._tower_index]
-            if isinstance(tower, dict):
-                return tower.get(self._sensor_type)
-            _LOGGER.warning(
-                "Tower data malformed for sensor '%s' (tower %d): %s",
-                self._sensor_type,
-                self._tower_index,
-                tower,
-            )
+
+        if self._sensor_category == "cell_voltage":
+            if self._tower_index < len(towers):
+                tower = towers[self._tower_index]
+                cell_voltages = tower.get("cell_voltages", [])
+                if self._cell_index < len(cell_voltages):
+                    return cell_voltages[self._cell_index]
             return None
-        elif self._sensor_type in data:
-            return data[self._sensor_type]
-        return None
+
+        if self._sensor_category == "cell_temperature":
+            if self._tower_index < len(towers):
+                tower = towers[self._tower_index]
+                cell_temperatures = tower.get("cell_temperatures", [])
+                if self._cell_index < len(cell_temperatures):
+                    return cell_temperatures[self._cell_index]
+            return None
+
+        if self._sensor_category == "tower":
+            if self._tower_index < len(towers):
+                tower = towers[self._tower_index]
+                if isinstance(tower, dict):
+                    return tower.get(self._sensor_type)
+                _LOGGER.warning(
+                    "Tower data malformed for sensor '%s' (tower %d): %s",
+                    self._sensor_type,
+                    self._tower_index,
+                    tower,
+                )
+            return None
+
+        return data.get(self._sensor_type)
 
 
 class BYDModuleAggregateSensor(BYDBaseSensor):
@@ -686,14 +689,18 @@ class BYDModuleAggregateSensor(BYDBaseSensor):
             attrs["cell_voltages"] = self._voltages
             attrs["max_voltage"] = max(self._voltages)
             attrs["min_voltage"] = min(self._voltages)
-            attrs["avg_voltage"] = round(sum(self._voltages) / len(self._voltages), 3)
+            if len(self._voltages) > 0:
+                attrs["avg_voltage"] = round(
+                    sum(self._voltages) / len(self._voltages), 3
+                )
         if self._temperatures:
             attrs["cell_temperatures"] = self._temperatures
             attrs["max_temperature"] = max(self._temperatures)
             attrs["min_temperature"] = min(self._temperatures)
-            attrs["avg_temperature"] = round(
-                sum(self._temperatures) / len(self._temperatures), 3
-            )
+            if len(self._temperatures) > 0:
+                attrs["avg_temperature"] = round(
+                    sum(self._temperatures) / len(self._temperatures), 3
+                )
         return attrs
 
     @property
