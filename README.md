@@ -16,6 +16,7 @@ This custom integration allows you to monitor and interact with your BYD HVS Bat
   - [Options](#options)
 - [Provided Sensors](#provided-sensors)
 - [Troubleshooting](#troubleshooting)
+- [Cleanup of Duplicate Entities](#cleanup-of-duplicate-entities)
 - [Known Issues](#known-issues)
 - [Contributing](#contributing)
 - [License](#license)
@@ -172,6 +173,17 @@ custom_components.byd_hvs: debug
 Restart Home Assistant: Restart your instance to apply the changes.
 
 Check Logs: Review detailed logs in the Home Assistant log file.
+
+## Cleanup of Duplicate Entities
+
+Older versions could register sensors without the battery serial number (unique_id `byd__<sensor>`) when the battery was not reachable during startup, and register them again with the serial number after a later restart. This left orphaned duplicates behind; the newer entities usually got a `_2` suffix (e.g. `sensor.byd_state_of_charge_2`).
+
+On startup, once the serial number is known, the integration now cleans these up automatically:
+
+- The old entity is migrated to the new unique_id. Its entity_id, history and customizations are kept.
+- If a duplicate with the serial number exists as well (usually the one with the `_2` suffix), it is removed first. A warning in the log names the removed and the kept entity_id.
+
+If automations, scripts or dashboards referenced the removed `_2` entity, update them to the original entity_id named in the log. The history recorded only on the `_2` entity is not carried over.
 
 ## Known Issues
 

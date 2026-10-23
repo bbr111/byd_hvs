@@ -19,8 +19,9 @@ from homeassistant.const import (
     UnitOfTemperature,
     PERCENTAGE,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import PlatformNotReady
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -341,6 +342,10 @@ async def async_setup_entry(
         )
     byd_hvs.hvs_serial = serial
 
+    # Clean up entities registered by older versions without a serial number,
+    # before the entities are added so migrated registry entries are reused.
+    _async_migrate_orphan_entities(hass, config_entry, serial)
+
     hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
 
     sensors: list[SensorEntity] = []
@@ -499,6 +504,58 @@ async def async_setup_entry(
                 )
 
     async_add_entities(sensors)
+
+
+# Prefix of unique_ids registered by older versions while the serial was empty.
+ORPHAN_UNIQUE_ID_PREFIX = "byd__"
+
+
+@callback
+def _async_migrate_orphan_entities(
+    hass: HomeAssistant, config_entry: ConfigEntry, serial: str
+) -> None:
+    """Migrate or remove entities registered with an empty serial number.
+
+    Older versions could register entities as "byd__<sensor>" when the serial
+    was not yet known, and later as "byd_<serial>_<sensor>" as well, leaving
+    orphaned duplicates behind. The old entity's unique_id is rewritten so its
+    entity_id, history and customizations are kept. If a duplicate with the
+    new unique_id exists, that duplicate is removed first.
+    """
+    ent_reg = er.async_get(hass)
+    new_prefix = f"byd_{serial}_"
+
+    for entry in er.async_entries_for_config_entry(ent_reg, config_entry.entry_id):
+        if not entry.unique_id.startswith(ORPHAN_UNIQUE_ID_PREFIX):
+            continue
+
+        new_unique_id = new_prefix + entry.unique_id[len(ORPHAN_UNIQUE_ID_PREFIX) :]
+        existing_entity_id = ent_reg.async_get_entity_id(
+            entry.domain, DOMAIN, new_unique_id
+        )
+
+        if existing_entity_id is not None:
+            # Keep the original entity (its entity_id is what automations and
+            # dashboards usually reference, and it holds the longer history)
+            # and drop the duplicate that was created later.
+            _LOGGER.warning(
+                "Removing duplicate entity %s (unique_id %s); %s is kept and "
+                "migrated. Update automations, scripts and dashboards that "
+                "reference %s",
+                existing_entity_id,
+                new_unique_id,
+                entry.entity_id,
+                existing_entity_id,
+            )
+            ent_reg.async_remove(existing_entity_id)
+
+        _LOGGER.info(
+            "Migrating %s: unique_id %s -> %s",
+            entry.entity_id,
+            entry.unique_id,
+            new_unique_id,
+        )
+        ent_reg.async_update_entity(entry.entity_id, new_unique_id=new_unique_id)
 
 
 class BYDBaseSensor(CoordinatorEntity, SensorEntity):
