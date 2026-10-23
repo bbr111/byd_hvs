@@ -20,6 +20,7 @@ from homeassistant.const import (
     PERCENTAGE,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -308,6 +309,25 @@ async def async_setup_entry(
             "update automatically when data becomes available",
             err,
         )
+
+    # The serial number is part of every unique_id, but it is only known after
+    # a successful poll. Without a stable fallback the first setup would
+    # register entities as "byd__<sensor>", and a later successful setup would
+    # register them again as "byd_<serial>_<sensor>", leaving orphaned
+    # duplicate entities behind. The config entry unique_id is known without
+    # polling and is set to the battery serial by the config flow.
+    serial = (
+        getattr(byd_hvs, "hvs_serial", "")
+        or config_entry.unique_id
+        or config_entry.data.get("serial_number")
+        or ""
+    )
+    if not serial or not (coordinator.data or {}).get("tower_attributes"):
+        raise PlatformNotReady(
+            "BYD HVS did not return complete data during setup "
+            "(serial number or tower data missing)"
+        )
+    byd_hvs.hvs_serial = serial
 
     hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
 
