@@ -175,6 +175,17 @@ Check Logs: Review detailed logs in the Home Assistant log file.
 
 ## Known Issues
 
+### Battery box resets its Ethernet link every minute without Internet access
+
+If the BYD battery box (BMU/BMS) is blocked from accessing the Internet, its firmware drops the Ethernet link roughly every 60 seconds for about 20 seconds and then requests a new DHCP lease. This is behavior of the BYD firmware, not of this integration: it also happens with other tools (ioBroker, Be Connect) and regardless of the polling interval. See [#30](https://github.com/bbr111/byd_hvs/issues/30) and the [Photovoltaikforum thread](https://www.photovoltaikforum.com/thread/179268-byd-per-ethernet-in-lan-verbinden/?pageNo=4) (German).
+
+The integration tolerates these interruptions: if a poll fails, the last known values are kept until the next successful update.
+
+Workarounds reported by users:
+
+- Allow outgoing connections from the battery box on ports 443 (HTTPS) and 1883 (MQTT); with these open the link stays stable.
+- Instead of blocking the box completely in the firewall, block unwanted destinations via DNS (e.g. Pi-hole or AdGuard Home).
+
 ## Contributing
 
 Contributions are welcome! Please follow these steps:
