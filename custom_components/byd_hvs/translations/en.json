@@ -1,6 +1,5 @@
 {
   "config": {
-    "title": "BYD HVS Battery",
     "step": {
       "user": {
         "title": "Set up BYD HVS Battery",
