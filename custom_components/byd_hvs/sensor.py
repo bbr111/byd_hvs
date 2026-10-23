@@ -232,6 +232,24 @@ TOWER_SENSOR_TYPES = {
 }
 
 
+def _plausible_count(
+    available: int, total: int | None, per_module: int | None, modules: int | None
+) -> int:
+    """Return how many cell values can be trusted.
+
+    Older bydhvs versions can return more values than the battery has (e.g. a
+    negative slice appended ~110 garbage temperature bytes for systems with
+    <= 30 temperature sensors). Limit the list to the count reported by the
+    library and fall back to the full list if no count is known.
+    """
+    expected = total or 0
+    if expected <= 0 and per_module and modules:
+        expected = per_module * modules
+    if expected <= 0:
+        return available
+    return min(available, expected)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -379,13 +397,32 @@ async def async_setup_entry(
             ]
         )
 
+    data = coordinator.data
+    num_modules = data.get("modules") or 0
+    module_cell_count = data.get("module_cell_count") or 1
+    module_cell_temp_count = data.get("module_cell_temp_count") or 1
+
+    def _cell_count(tower: dict) -> int:
+        return _plausible_count(
+            len(tower.get("cell_voltages", [])),
+            data.get("number_of_cells"),
+            data.get("module_cell_count"),
+            num_modules,
+        )
+
+    def _temp_count(tower: dict) -> int:
+        return _plausible_count(
+            len(tower.get("cell_temperatures", [])),
+            data.get("number_of_temperatures"),
+            data.get("module_cell_temp_count"),
+            num_modules,
+        )
+
     # Cell voltage sensors
     if show_cell_voltage:
         towers = coordinator.data.get("tower_attributes", [])
-        module_cell_count = coordinator.data.get("module_cell_count", 1)
         for tower_index, tower in enumerate(towers):
-            cell_voltages = tower.get("cell_voltages", [])
-            max_cell_index = len(cell_voltages)
+            max_cell_index = _cell_count(tower)
             if max_cell_index >= 100:
                 num_digits = 3
             else:
@@ -395,7 +432,7 @@ async def async_setup_entry(
                 num_digits = 2
 
             counter = 0
-            for cell_index in range(len(cell_voltages)):
+            for cell_index in range(max_cell_index):
                 module_no = 0
                 counter += 1
                 cell_no = cell_index + 1
@@ -424,11 +461,9 @@ async def async_setup_entry(
 
     if show_cell_temperature:
         towers = coordinator.data.get("tower_attributes", [])
-        module_cell_temp_count = coordinator.data.get("module_cell_temp_count", 1)
         for tower_index, tower in enumerate(towers):
             counter = 0
-            cell_temperatures = tower.get("cell_temperatures", [])
-            max_cell_index = len(cell_temperatures)
+            max_cell_index = _temp_count(tower)
             if max_cell_index >= 100:
                 num_digits = 3
             else:
@@ -437,7 +472,7 @@ async def async_setup_entry(
             if show_reset_counter:
                 num_digits = 2
 
-            for cell_index in range(len(cell_temperatures)):
+            for cell_index in range(max_cell_index):
                 module_no = 0
                 counter += 1
                 cell_no = cell_index + 1
@@ -468,19 +503,19 @@ async def async_setup_entry(
             len(coordinator.data.get("tower_attributes", [])),
         )
         towers = coordinator.data.get("tower_attributes", [])
-        module_cell_count = coordinator.data.get("module_cell_count", 1)
-        module_cell_temp_count = coordinator.data.get("module_cell_temp_count", 1)
 
         for tower_index, tower in enumerate(towers):
-            cell_voltages = tower.get("cell_voltages", [])
-            cell_temps = tower.get("cell_temperatures", [])
-            num_modules = max(
+            cell_voltages = tower.get("cell_voltages", [])[: _cell_count(tower)]
+            cell_temps = tower.get("cell_temperatures", [])[: _temp_count(tower)]
+            # Use the module count reported by the BMU; only derive it from
+            # the list lengths if the library did not report one.
+            tower_modules = num_modules or max(
                 len(cell_voltages) // module_cell_count,
                 len(cell_temps) // module_cell_temp_count,
                 1,
             )
 
-            for module_index in range(num_modules):
+            for module_index in range(tower_modules):
                 start_v = module_index * module_cell_count
                 end_v = start_v + module_cell_count
                 module_voltages = cell_voltages[start_v:end_v]
