@@ -185,6 +185,13 @@ On startup, once the serial number is known, the integration now cleans these up
 
 If automations, scripts or dashboards referenced the removed `_2` entity, update them to the original entity_id named in the log. The history recorded only on the `_2` entity is not carried over.
 
+### Bogus cell temperature and module entities
+
+Older versions could create far more cell temperature entities than the battery has (100+ instead of e.g. 8, 16 or 24) and too many module aggregate entities, see [#25](https://github.com/bbr111/byd_hvs/issues/25). On startup these are now cleaned up automatically:
+
+- Entities for cells that really exist are migrated to the new unique_id (the index padding changes, e.g. `..._001` -> `..._01`). Their entity_id, history and customizations are kept. If an entity with the new unique_id already exists, the old one is kept and the duplicate is removed.
+- Cell and module aggregate entities beyond the real number of cells/modules are removed. The log contains a warning with the number of removed entities.
+
 ## Known Issues
 
 ### Battery box resets its Ethernet link every minute without Internet access

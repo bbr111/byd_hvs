@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 import logging
+import re
 
 import asyncio
 import bydhvs
@@ -232,6 +233,109 @@ TOWER_SENSOR_TYPES = {
 }
 
 
+def _plausible_count(
+    available: int, total: int | None, per_module: int | None, modules: int | None
+) -> int:
+    """Return how many cell values can be trusted.
+
+    Older bydhvs versions can return more values than the battery has (e.g. a
+    negative slice appended ~110 garbage temperature bytes for systems with
+    <= 30 temperature sensors). Limit the list to the count reported by the
+    library and fall back to the full list if no count is known.
+    """
+    expected = total or 0
+    if expected <= 0 and per_module and modules:
+        expected = per_module * modules
+    if expected <= 0:
+        return available
+    return min(available, expected)
+
+
+# Cell sensor category -> (list key in tower data, total count key,
+# per-module count key) as returned by bydhvs.
+CELL_CATEGORIES = {
+    "cell_voltage": ("cell_voltages", "number_of_cells", "module_cell_count"),
+    "cell_temperature": (
+        "cell_temperatures",
+        "number_of_temperatures",
+        "module_cell_temp_count",
+    ),
+}
+
+
+def _plausible_cell_count(data: dict, tower: dict, category: str) -> int:
+    """Return the number of trustworthy values of a category for a tower."""
+    list_key, total_key, per_module_key = CELL_CATEGORIES[category]
+    return _plausible_count(
+        len(tower.get(list_key, [])),
+        data.get(total_key),
+        data.get(per_module_key),
+        data.get("modules") or 0,
+    )
+
+
+def _per_module(data: dict, category: str) -> int:
+    """Return the number of values per module (at least 1)."""
+    return data.get(CELL_CATEGORIES[category][2]) or 1
+
+
+def _index_width(count: int, show_reset_counter: bool) -> int:
+    """Return the zero-padded width of the cell index in names/unique_ids."""
+    if show_reset_counter:
+        return 2
+    return 3 if count >= 100 else 2
+
+
+def _cell_unique_id(
+    serial: str, category: str, tower_index: int, module: int, index: int, width: int
+) -> str:
+    """Return the unique_id of a cell voltage/temperature sensor."""
+    return f"byd_{serial}_{category}_{tower_index + 1}_{module}_{index:0{width}d}"
+
+
+def _cell_entity_specs(
+    data: dict,
+    tower: dict,
+    category: str,
+    show_modules: bool,
+    show_reset_counter: bool,
+) -> list[tuple[int, int, int, int]]:
+    """Return (cell_index, module_no, counter, width) for each cell entity.
+
+    Used both to create the entities and to compute the unique_ids for the
+    registry migration, so both always agree.
+    """
+    count = _plausible_cell_count(data, tower, category)
+    per_module = _per_module(data, category)
+    width = _index_width(count, show_reset_counter)
+    specs = []
+    counter = 0
+    for cell_index in range(count):
+        counter += 1
+        if show_reset_counter and counter > per_module:
+            counter = 1
+        module_no = cell_index // per_module + 1 if show_modules else 0
+        specs.append((cell_index, module_no, counter, width))
+    return specs
+
+
+def _tower_module_count(data: dict, tower: dict) -> int:
+    """Return the number of modules of a tower.
+
+    Use the module count reported by the BMU; only derive it from the
+    (plausible) list lengths if the library did not report one.
+    """
+    if modules := data.get("modules") or 0:
+        return modules
+    return max(
+        _plausible_cell_count(data, tower, "cell_voltage")
+        // _per_module(data, "cell_voltage"),
+        _plausible_cell_count(data, tower, "cell_temperature")
+        // _per_module(data, "cell_temperature"),
+        1,
+    )
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -379,83 +483,35 @@ async def async_setup_entry(
             ]
         )
 
-    # Cell voltage sensors
-    if show_cell_voltage:
-        towers = coordinator.data.get("tower_attributes", [])
-        module_cell_count = coordinator.data.get("module_cell_count", 1)
+    data = coordinator.data
+
+    # Fix up cell/module entities registered with wrong counts by older
+    # versions (e.g. 100+ bogus temperatures), before the entities are added.
+    _async_migrate_cell_entities(
+        hass, config_entry, serial, data, show_modules, show_reset_counter
+    )
+
+    # Cell voltage and temperature sensors
+    for category, enabled in (
+        ("cell_voltage", show_cell_voltage),
+        ("cell_temperature", show_cell_temperature),
+    ):
+        if not enabled:
+            continue
         for tower_index, tower in enumerate(towers):
-            cell_voltages = tower.get("cell_voltages", [])
-            max_cell_index = len(cell_voltages)
-            if max_cell_index >= 100:
-                num_digits = 3
-            else:
-                num_digits = 2
-
-            if show_reset_counter:
-                num_digits = 2
-
-            counter = 0
-            for cell_index in range(len(cell_voltages)):
-                module_no = 0
-                counter += 1
-                cell_no = cell_index + 1
-                if show_reset_counter and counter > module_cell_count:
-                    counter = 1
-
-                if show_modules:
-                    module_no = cell_index // module_cell_count + 1
-                    cell_no = f"{module_no}_{counter}"
-
+            for cell_index, module_no, counter, width in _cell_entity_specs(
+                data, tower, category, show_modules, show_reset_counter
+            ):
+                cell_no = f"{module_no}_{counter}" if show_modules else cell_index + 1
                 sensors.append(
                     BYDBatterySensor(
                         coordinator,
-                        f"cell_voltage_{tower_index + 1}_{cell_no}",
+                        f"{category}_{tower_index + 1}_{cell_no}",
                         byd_hvs,
                         tower_index,
                         cell_index,
-                        "cell_voltage",
-                        num_digits,
-                        module_no,
-                        counter,
-                    )
-                )
-
-    # Cell temperature sensors
-
-    if show_cell_temperature:
-        towers = coordinator.data.get("tower_attributes", [])
-        module_cell_temp_count = coordinator.data.get("module_cell_temp_count", 1)
-        for tower_index, tower in enumerate(towers):
-            counter = 0
-            cell_temperatures = tower.get("cell_temperatures", [])
-            max_cell_index = len(cell_temperatures)
-            if max_cell_index >= 100:
-                num_digits = 3
-            else:
-                num_digits = 2
-
-            if show_reset_counter:
-                num_digits = 2
-
-            for cell_index in range(len(cell_temperatures)):
-                module_no = 0
-                counter += 1
-                cell_no = cell_index + 1
-                if show_reset_counter and counter > module_cell_temp_count:
-                    counter = 1
-                if show_modules:
-                    module_no = cell_index // module_cell_temp_count + 1
-                    cell_no = f"{module_no}_{counter}"
-
-                sensors.append(
-                    BYDBatterySensor(
-                        coordinator,
-                        f"cell_temperature_{tower_index + 1}_{cell_no}",
-                        byd_hvs,
-                        tower_index,
-                        cell_index,
-                        "cell_temperature",
-                        num_digits,
+                        category,
+                        width,
                         module_no,
                         counter,
                     )
@@ -463,45 +519,15 @@ async def async_setup_entry(
 
     if aggregate_modules:
         _LOGGER.debug(
-            "Aggregate enabled: %s | Towers found: %s",
-            aggregate_modules,
-            len(coordinator.data.get("tower_attributes", [])),
+            "Aggregate enabled: %s | Towers found: %s", aggregate_modules, len(towers)
         )
-        towers = coordinator.data.get("tower_attributes", [])
-        module_cell_count = coordinator.data.get("module_cell_count", 1)
-        module_cell_temp_count = coordinator.data.get("module_cell_temp_count", 1)
-
         for tower_index, tower in enumerate(towers):
-            cell_voltages = tower.get("cell_voltages", [])
-            cell_temps = tower.get("cell_temperatures", [])
-            num_modules = max(
-                len(cell_voltages) // module_cell_count,
-                len(cell_temps) // module_cell_temp_count,
-                1,
-            )
-
-            for module_index in range(num_modules):
-                start_v = module_index * module_cell_count
-                end_v = start_v + module_cell_count
-                module_voltages = cell_voltages[start_v:end_v]
-
-                start_t = module_index * module_cell_temp_count
-                end_t = start_t + module_cell_temp_count
-                module_temps = cell_temps[start_t:end_t]
-
-                if not module_voltages and not module_temps:
-                    continue
-
-                sensors.append(
-                    BYDModuleAggregateSensor(
-                        coordinator,
-                        module_index,
-                        tower_index,
-                        byd_hvs,
-                        module_voltages,
-                        module_temps,
-                    )
+            sensors.extend(
+                BYDModuleAggregateSensor(
+                    coordinator, module_index, tower_index, byd_hvs
                 )
+                for module_index in range(_tower_module_count(data, tower))
+            )
 
     async_add_entities(sensors)
 
@@ -556,6 +582,127 @@ def _async_migrate_orphan_entities(
             new_unique_id,
         )
         ent_reg.async_update_entity(entry.entity_id, new_unique_id=new_unique_id)
+
+
+_CELL_UNIQUE_ID_RE = re.compile(r"^(cell_voltage|cell_temperature)_(\d+)_(\d+)_(\d+)$")
+_MODULE_UNIQUE_ID_RE = re.compile(r"^tower(\d+)_module(\d+)$")
+_MAX_REMOVAL_WARNINGS = 10
+
+
+@callback
+def _async_migrate_cell_entities(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    serial: str,
+    data: dict,
+    show_modules: bool,
+    show_reset_counter: bool,
+) -> None:
+    """Migrate or remove cell and module entities with outdated unique_ids.
+
+    Older versions created far too many cell temperature entities when
+    bydhvs returned garbage values (see #25). Because the zero-padded index
+    width depends on the number of cells, the valid entities also got a
+    different unique_id (e.g. "..._001" instead of "..._01").
+
+    - Entities whose index still exists are migrated to the new unique_id, so
+      entity_id, history and customizations are kept. If an entity with the
+      new unique_id exists as well, the old entity is kept and the duplicate
+      is removed (same policy as for the serial number migration).
+    - Entities whose index or module is beyond the real count are removed.
+    - Module aggregate entities beyond the real module count are removed.
+    """
+    ent_reg = er.async_get(hass)
+    prefix = f"byd_{serial}_"
+    towers = data.get("tower_attributes", [])
+
+    # (category, tower_no, module, index) -> expected unique_id
+    expected: dict[tuple[str, int, int, int], str] = {}
+    # (category, tower_no) -> (number of cells, highest module number)
+    limits: dict[tuple[str, int], tuple[int, int]] = {}
+    for category in CELL_CATEGORIES:
+        for tower_index, tower in enumerate(towers):
+            specs = _cell_entity_specs(
+                data, tower, category, show_modules, show_reset_counter
+            )
+            for _cell_index, module_no, counter, width in specs:
+                expected[(category, tower_index + 1, module_no, counter)] = (
+                    _cell_unique_id(
+                        serial, category, tower_index, module_no, counter, width
+                    )
+                )
+            limits[(category, tower_index + 1)] = (
+                len(specs),
+                specs[-1][1] if specs else 0,
+            )
+    expected_ids = set(expected.values())
+    module_counts = {
+        tower_index + 1: _tower_module_count(data, tower)
+        for tower_index, tower in enumerate(towers)
+    }
+
+    removed: list[str] = []
+
+    for entry in list(
+        er.async_entries_for_config_entry(ent_reg, config_entry.entry_id)
+    ):
+        if entry.unique_id in expected_ids or not entry.unique_id.startswith(prefix):
+            continue
+        suffix = entry.unique_id[len(prefix) :]
+
+        if match := _MODULE_UNIQUE_ID_RE.match(suffix):
+            tower_no, module = int(match.group(1)), int(match.group(2))
+            if tower_no in module_counts and module > module_counts[tower_no]:
+                ent_reg.async_remove(entry.entity_id)
+                removed.append(entry.entity_id)
+            continue
+
+        if not (match := _CELL_UNIQUE_ID_RE.match(suffix)):
+            continue
+        category, tower_no = match.group(1), int(match.group(2))
+        module, index = int(match.group(3)), int(match.group(4))
+        if (category, tower_no) not in limits:
+            continue  # no data for this tower, leave it alone
+
+        new_unique_id = expected.get((category, tower_no, module, index))
+        if new_unique_id is not None:
+            # Same cell, only the zero padding of the index changed.
+            existing_entity_id = ent_reg.async_get_entity_id(
+                entry.domain, DOMAIN, new_unique_id
+            )
+            if existing_entity_id is not None:
+                ent_reg.async_remove(existing_entity_id)
+                removed.append(existing_entity_id)
+            _LOGGER.info(
+                "Migrating %s: unique_id %s -> %s",
+                entry.entity_id,
+                entry.unique_id,
+                new_unique_id,
+            )
+            ent_reg.async_update_entity(entry.entity_id, new_unique_id=new_unique_id)
+            continue
+
+        count, max_module = limits[(category, tower_no)]
+        if index > count or (module > 0 and module > max_module):
+            ent_reg.async_remove(entry.entity_id)
+            removed.append(entry.entity_id)
+
+    if not removed:
+        return
+    if len(removed) <= _MAX_REMOVAL_WARNINGS:
+        for entity_id in removed:
+            _LOGGER.warning(
+                "Removed entity %s: it does not exist on the battery (or was a "
+                "duplicate of a migrated entity)",
+                entity_id,
+            )
+    else:
+        _LOGGER.warning(
+            "Removed %d cell/module entities that do not exist on the battery "
+            "(or were duplicates of migrated entities), e.g. %s",
+            len(removed),
+            ", ".join(removed[:5]),
+        )
 
 
 class BYDBaseSensor(CoordinatorEntity, SensorEntity):
@@ -678,9 +825,14 @@ class BYDBatterySensor(BYDBaseSensor):
             return f"byd_{hvs_serial}_{self._sensor_type}_{tower_index_formatted}"
 
         if self._sensor_category:
-            # Format tower index as needed (assuming towers are less than 10)
-            tower_index_formatted = f"{self._tower_index + 1:01d}"
-            return f"byd_{hvs_serial}_{self._sensor_category}_{tower_index_formatted}_{self._module}_{self._cell_index_formatted}"
+            return _cell_unique_id(
+                hvs_serial,
+                self._sensor_category,
+                self._tower_index,
+                self._module,
+                self._reset_counter,
+                self._num_digits,
+            )
 
         return f"byd_{hvs_serial}_{self._sensor_type}"
 
@@ -741,14 +893,10 @@ class BYDModuleAggregateSensor(BYDBaseSensor):
         module_index,
         tower_index,
         battery,
-        voltages,
-        temperatures,
     ):
         super().__init__(coordinator, battery)
         self._module_index = module_index
         self._tower_index = tower_index
-        self._voltages = voltages or []
-        self._temperatures = temperatures or []
         self._name = f"Tower {tower_index + 1} Module {module_index + 1}"
         self._icon = "mdi:battery"
         self._attr_native_unit_of_measurement = UnitOfElectricPotential.MILLIVOLT
@@ -764,6 +912,27 @@ class BYDModuleAggregateSensor(BYDBaseSensor):
         """Return a unique ID for the aggregated module sensor."""
         hvs_serial = getattr(self._battery, "hvs_serial", "unknown")
         return f"byd_{hvs_serial}_tower{self._tower_index + 1}_module{self._module_index + 1}"
+
+    def _module_values(self, category: str) -> list:
+        """Return this module's current values from the coordinator data."""
+        data = self.coordinator.data or {}
+        towers = data.get("tower_attributes", [])
+        if self._tower_index >= len(towers):
+            return []
+        tower = towers[self._tower_index]
+        values = tower.get(CELL_CATEGORIES[category][0], [])
+        values = values[: _plausible_cell_count(data, tower, category)]
+        per_module = _per_module(data, category)
+        start = self._module_index * per_module
+        return values[start : start + per_module]
+
+    @property
+    def _voltages(self) -> list:
+        return self._module_values("cell_voltage")
+
+    @property
+    def _temperatures(self) -> list:
+        return self._module_values("cell_temperature")
 
     @property
     def native_value(self):
