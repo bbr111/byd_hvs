@@ -92,7 +92,13 @@ SENSOR_TYPES = {
         UnitOfElectricPotential.VOLT,
         SensorDeviceClass.VOLTAGE,
     ],
-    "soh": ["State of Health", "mdi:heart-pulse", PERCENTAGE, None],
+    "soh": [
+        "State of Health",
+        "mdi:heart-pulse",
+        PERCENTAGE,
+        None,
+        SensorStateClass.MEASUREMENT,
+    ],
     "serial_number": ["Serial Number", "mdi:identifier", None, None],
     "bmu_firmware": ["BMU Firmware", "mdi:chip", None, None],
     "bms_firmware": ["BMS Firmware", "mdi:chip", None, None],
@@ -213,7 +219,13 @@ TOWER_SENSOR_TYPES = {
         PERCENTAGE,
         None,
     ],
-    "soh": ["State of Health", "mdi:heart-pulse", PERCENTAGE, None],
+    "soh": [
+        "State of Health",
+        "mdi:heart-pulse",
+        PERCENTAGE,
+        None,
+        SensorStateClass.MEASUREMENT,
+    ],
     "state": ["State", "mdi:information-outline", None, None],
     "state_string": ["State String", "mdi:information-outline", None, None],
 }
@@ -576,6 +588,7 @@ class BYDBatterySensor(BYDBaseSensor):
             if len(TOWER_SENSOR_TYPES.get(sensor_type, [])) > 4:
                 self._attr_state_class = TOWER_SENSOR_TYPES[sensor_type][4]
             elif self._attr_device_class in (
+                SensorDeviceClass.BATTERY,
                 SensorDeviceClass.TEMPERATURE,
                 SensorDeviceClass.VOLTAGE,
                 SensorDeviceClass.CURRENT,
@@ -585,6 +598,7 @@ class BYDBatterySensor(BYDBaseSensor):
         elif sensor_type in SENSOR_TYPES and len(SENSOR_TYPES[sensor_type]) > 4:
             self._attr_state_class = SENSOR_TYPES[sensor_type][4]
         elif self._attr_device_class in (
+            SensorDeviceClass.BATTERY,
             SensorDeviceClass.TEMPERATURE,
             SensorDeviceClass.VOLTAGE,
             SensorDeviceClass.CURRENT,
