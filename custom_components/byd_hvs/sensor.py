@@ -20,7 +20,7 @@ from homeassistant.const import (
     PERCENTAGE,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -323,7 +323,7 @@ async def async_setup_entry(
         or ""
     )
     if not serial or not (coordinator.data or {}).get("tower_attributes"):
-        raise ConfigEntryNotReady(
+        raise PlatformNotReady(
             "BYD HVS did not return complete data during setup "
             "(serial number or tower data missing)"
         )
