@@ -1,6 +1,7 @@
 {
   "domain": "byd_hvs",
   "name": "BYD HVS Battery",
+  "categories": ["energy.solar_batteries"],
   "codeowners": ["@bbr111"],
   "config_flow": true,
   "dependencies": [],
