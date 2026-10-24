@@ -19,10 +19,11 @@ from homeassistant.const import (
     UnitOfEnergy,
     UnitOfTemperature,
     PERCENTAGE,
+    EntityCategory,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import PlatformNotReady
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -491,6 +492,10 @@ async def async_setup_entry(
         hass, config_entry, serial, data, show_modules, show_reset_counter
     )
 
+    # Runs on every setup (not only during a migration), so installations that
+    # were already migrated by 0.4.14 are repaired as well (#47).
+    _async_repair_device_disabled_entities(hass, config_entry)
+
     # Cell voltage and temperature sensors
     for category, enabled in (
         ("cell_voltage", show_cell_voltage),
@@ -532,6 +537,105 @@ async def async_setup_entry(
     async_add_entities(sensors)
 
 
+def _prefer_existing(
+    ent_reg: er.EntityRegistry, entry: er.RegistryEntry, existing_entity_id: str
+) -> bool:
+    """Return True if the existing duplicate should be kept instead of entry.
+
+    The outdated entry normally wins (it holds the original entity_id), but not
+    if it is disabled while the duplicate is enabled (#47).
+    """
+    existing = ent_reg.async_get(existing_entity_id)
+    return (
+        entry.disabled_by is not None
+        and existing is not None
+        and existing.disabled_by is None
+    )
+
+
+@callback
+def _async_update_unique_id(
+    ent_reg: er.EntityRegistry, entry: er.RegistryEntry, new_unique_id: str
+) -> None:
+    """Change the unique_id; re-enable entities only disabled via a device.
+
+    If the entity's device is really disabled, Home Assistant disables the
+    entity again when it is added.
+    """
+    if entry.disabled_by is er.RegistryEntryDisabler.DEVICE:
+        ent_reg.async_update_entity(
+            entry.entity_id, new_unique_id=new_unique_id, disabled_by=None
+        )
+    else:
+        ent_reg.async_update_entity(entry.entity_id, new_unique_id=new_unique_id)
+
+
+@callback
+def _async_repair_device_disabled_entities(
+    hass: HomeAssistant, config_entry: ConfigEntry
+) -> None:
+    """Re-enable entities disabled only via a device that is not disabled.
+
+    Older versions created a bogus device "BYD Battery " with an empty serial
+    (identifier (DOMAIN, "")). If users disabled it, its entities got
+    disabled_by=device, and the 0.4.14 migration could keep such entities and
+    move them to the real device, where they stayed disabled (#47).
+
+    - Entities still attached to the bogus device are detached from it; Home
+      Assistant attaches them to the real device when they are added.
+    - Entities with disabled_by=device whose device is not disabled (or is the
+      bogus device) are re-enabled. If the device is disabled, Home Assistant
+      disables them again when they are added.
+    - The bogus device is removed once no entity references it anymore and it
+      belongs to this config entry only.
+    """
+    ent_reg = er.async_get(hass)
+    dev_reg = dr.async_get(hass)
+    bogus = dev_reg.async_get_device(identifiers={(DOMAIN, "")})
+    bogus_id = bogus.id if bogus else None
+    # device_id -> device is disabled; there are only one or two devices, but
+    # hundreds of cell entities.
+    device_disabled: dict[str, bool] = {}
+    reenabled: list[str] = []
+
+    # Single pass over all entities of this entry (incl. cell entities).
+    for entry in er.async_entries_for_config_entry(ent_reg, config_entry.entry_id):
+        changes: dict = {}
+        on_bogus = bogus_id is not None and entry.device_id == bogus_id
+        if on_bogus:
+            changes["device_id"] = None
+        if entry.disabled_by is er.RegistryEntryDisabler.DEVICE:
+            disabled = False
+            if entry.device_id and not on_bogus:
+                if entry.device_id not in device_disabled:
+                    device = dev_reg.async_get(entry.device_id)
+                    device_disabled[entry.device_id] = bool(device and device.disabled)
+                disabled = device_disabled[entry.device_id]
+            if not disabled:
+                changes["disabled_by"] = None
+                reenabled.append(entry.entity_id)
+        if changes:
+            ent_reg.async_update_entity(entry.entity_id, **changes)
+
+    if reenabled:
+        _LOGGER.warning(
+            "Re-enabled %d entities that were disabled via a device which is "
+            "not disabled (anymore), e.g. %s",
+            len(reenabled),
+            ", ".join(reenabled[:5]),
+        )
+
+    if (
+        bogus is not None
+        and bogus.config_entries <= {config_entry.entry_id}
+        and not er.async_entries_for_device(
+            ent_reg, bogus.id, include_disabled_entities=True
+        )
+    ):
+        _LOGGER.info("Removing empty device %s without serial number", bogus.name)
+        dev_reg.async_remove_device(bogus.id)
+
+
 # Prefix of unique_ids registered by older versions while the serial was empty.
 ORPHAN_UNIQUE_ID_PREFIX = "byd__"
 
@@ -550,6 +654,7 @@ def _async_migrate_orphan_entities(
     """
     ent_reg = er.async_get(hass)
     new_prefix = f"byd_{serial}_"
+    dropped = 0
 
     for entry in er.async_entries_for_config_entry(ent_reg, config_entry.entry_id):
         if not entry.unique_id.startswith(ORPHAN_UNIQUE_ID_PREFIX):
@@ -559,6 +664,22 @@ def _async_migrate_orphan_entities(
         existing_entity_id = ent_reg.async_get_entity_id(
             entry.domain, DOMAIN, new_unique_id
         )
+
+        if existing_entity_id is not None and _prefer_existing(
+            ent_reg, entry, existing_entity_id
+        ):
+            # The orphan is disabled (typically because the bogus empty-serial
+            # device was disabled) but the duplicate works: keep the working
+            # entity and drop the orphan (#47).
+            _LOGGER.debug(
+                "Removing disabled orphan entity %s (unique_id %s); keeping %s",
+                entry.entity_id,
+                entry.unique_id,
+                existing_entity_id,
+            )
+            ent_reg.async_remove(entry.entity_id)
+            dropped += 1
+            continue
 
         if existing_entity_id is not None:
             # Keep the original entity (its entity_id is what automations and
@@ -581,7 +702,14 @@ def _async_migrate_orphan_entities(
             entry.unique_id,
             new_unique_id,
         )
-        ent_reg.async_update_entity(entry.entity_id, new_unique_id=new_unique_id)
+        _async_update_unique_id(ent_reg, entry, new_unique_id)
+
+    if dropped:
+        _LOGGER.warning(
+            "Removed %d disabled orphan entities without serial number; the "
+            "working duplicates were kept",
+            dropped,
+        )
 
 
 _CELL_UNIQUE_ID_RE = re.compile(r"^(cell_voltage|cell_temperature)_(\d+)_(\d+)_(\d+)$")
@@ -670,6 +798,13 @@ def _async_migrate_cell_entities(
             existing_entity_id = ent_reg.async_get_entity_id(
                 entry.domain, DOMAIN, new_unique_id
             )
+            if existing_entity_id is not None and _prefer_existing(
+                ent_reg, entry, existing_entity_id
+            ):
+                # Old entity is disabled, the new one works: keep the new one.
+                ent_reg.async_remove(entry.entity_id)
+                removed.append(entry.entity_id)
+                continue
             if existing_entity_id is not None:
                 ent_reg.async_remove(existing_entity_id)
                 removed.append(existing_entity_id)
@@ -679,7 +814,7 @@ def _async_migrate_cell_entities(
                 entry.unique_id,
                 new_unique_id,
             )
-            ent_reg.async_update_entity(entry.entity_id, new_unique_id=new_unique_id)
+            _async_update_unique_id(ent_reg, entry, new_unique_id)
             continue
 
         count, max_module = limits[(category, tower_no)]
@@ -786,6 +921,13 @@ class BYDBatterySensor(BYDBaseSensor):
             self._icon = SENSOR_TYPES[sensor_type][1]
             self._attr_native_unit_of_measurement = SENSOR_TYPES[sensor_type][2]
             self._attr_device_class = SENSOR_TYPES[sensor_type][3]
+
+        if sensor_type == "eta":
+            self._attr_suggested_display_precision = 1
+        elif sensor_category == "tower" and sensor_type == "balancing_status":
+            # Raw hex bitmask of the balancing cells, mainly for diagnostics.
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+            self._attr_entity_registry_enabled_default = False
 
         # Set state_class: explicit definitions take precedence over defaults
         if self._sensor_category == "tower":
