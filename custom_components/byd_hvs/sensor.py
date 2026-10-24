@@ -240,14 +240,14 @@ TOWER_SENSOR_TYPES = {
 SENSOR_PRECISION = {
     "soc": 0,  # integer %
     "power": 0,  # W, current (0.1 A) x voltage (0.1 V)
-    "max_voltage": 2,  # V, /100
-    "min_voltage": 2,  # V, /100
+    "max_voltage": 2,  # V, /100 (highest cell voltage)
+    "min_voltage": 2,  # V, /100 (lowest cell voltage)
     "current": 1,  # A, /10
     "battery_voltage": 1,  # V, /100 rounded to 0.1 by bydhvs
     "max_temperature": 0,  # integer °C
     "min_temperature": 0,
     "battery_temperature": 0,
-    "voltage_difference": 2,  # V, difference of /100 values
+    "voltage_difference": 3,  # V, difference of /100 values
     "soh": 0,  # integer %
     "output_voltage": 1,  # V, /100 rounded to 0.1 by bydhvs
     "charge_total": 1,  # kWh, /10
