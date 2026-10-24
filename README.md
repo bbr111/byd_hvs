@@ -140,6 +140,7 @@ The integration provides the following sensors:
 - Cell Temperatures: Individual temperatures for each cell.
 - Error Messages
 - ETA (charge/discharge efficiency, total and per tower), shown with 1 decimal
+- All numeric sensors come with a default display precision that matches the resolution delivered by the battery (e.g. cell voltages in whole mV, temperatures in whole °C, current 0.1 A). You can change it per entity in the entity settings.
 - Tower Balancing Status: hex bitmask of the cells that are currently balancing (one bit per cell). It is a **diagnostic** entity and disabled by default for new installations; the Balancing Count sensor shows the number of balancing cells.
 
 ## Troubleshooting
