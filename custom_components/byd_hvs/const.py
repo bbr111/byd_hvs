@@ -10,3 +10,8 @@ SHOW_MODULES = "show_modules"
 SHOW_RESET_COUNTER = "show_reset_counter"
 SHOW_TOWERS = "show_towers"
 AGGREGATE_MODULES = "aggregate_modules"
+
+
+def signal_coordinator_ready(entry_id: str) -> str:
+    """Dispatcher signal sent once the battery coordinator is available."""
+    return f"{DOMAIN}_{entry_id}_coordinator_ready"
