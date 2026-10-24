@@ -5,7 +5,7 @@
 This custom integration allows you to monitor and interact with your BYD HVS Battery system through Home Assistant. It provides real-time data on battery status, cell voltages, temperatures, and more.
 
 > [!IMPORTANT]
-> **Updated to 0.4.14?** Some entities may show **"Disabled by device"** or now have a `_2` suffix in their entity ID (e.g. `sensor.byd_battery_temperature_2`), including cell voltage and cell temperature sensors. Please update to **0.4.14a** or later, see [Upgrading from 0.4.14](#upgrading-from-0414).
+> **Updated to 0.4.14?** Some entities may show **"Disabled by device"** or now have a `_2` suffix in their entity ID (e.g. `sensor.byd_battery_temperature_2`), including cell voltage and cell temperature sensors. Please update to **0.4.15** or later, see [Upgrading from 0.4.14](#upgrading-from-0414).
 
 ## Table of Contents
 
@@ -184,7 +184,7 @@ Check Logs: Review detailed logs in the Home Assistant log file.
 
 The duplicate entity cleanup in 0.4.14 could keep an old, **disabled** entity and remove the working one ([#47](https://github.com/bbr111/byd_hvs/issues/47)). This happened if the old device "BYD Battery " without a serial number had been disabled. Affected entities, including cell voltage and cell temperature sensors, show **"Disabled by device"**, and some entity IDs got a `_2` suffix.
 
-Update to **0.4.14a** or later and restart Home Assistant:
+Update to **0.4.15** or later and restart Home Assistant:
 
 - Affected entities are **re-enabled automatically** on startup (a warning in the log shows how many). Entities you disabled yourself stay disabled.
 - The empty device "BYD Battery " without a serial number is removed.
@@ -198,7 +198,7 @@ On startup, once the serial number is known, the integration now cleans these up
 
 - The old entity is migrated to the new unique_id. Its entity_id, history and customizations are kept.
 - If a duplicate with the serial number exists as well (usually the one with the `_2` suffix), it is removed first. A warning in the log names the removed and the kept entity_id.
-- Exception (since 0.4.14a): if the old entity is disabled but the duplicate is enabled, the working duplicate is kept and the old entity is removed.
+- Exception (since 0.4.15): if the old entity is disabled but the duplicate is enabled, the working duplicate is kept and the old entity is removed.
 
 If automations, scripts or dashboards referenced the removed `_2` entity, update them to the original entity_id named in the log. The history recorded only on the `_2` entity is not carried over.
 
@@ -206,7 +206,7 @@ If automations, scripts or dashboards referenced the removed `_2` entity, update
 
 Older versions could create far more cell temperature entities than the battery has (100+ instead of e.g. 8, 16 or 24) and too many module aggregate entities, see [#25](https://github.com/bbr111/byd_hvs/issues/25). On startup these are now cleaned up automatically:
 
-- Entities for cells that really exist are migrated to the new unique_id (the index padding changes, e.g. `..._001` -> `..._01`). Their entity_id, history and customizations are kept. If an entity with the new unique_id already exists, the old one is kept and the duplicate is removed (since 0.4.14a: unless the old one is disabled and the duplicate is enabled).
+- Entities for cells that really exist are migrated to the new unique_id (the index padding changes, e.g. `..._001` -> `..._01`). Their entity_id, history and customizations are kept. If an entity with the new unique_id already exists, the old one is kept and the duplicate is removed (since 0.4.15: unless the old one is disabled and the duplicate is enabled).
 - Cell and module aggregate entities beyond the real number of cells/modules are removed. The log contains a warning with the number of removed entities.
 
 ## Known Issues
