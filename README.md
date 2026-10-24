@@ -18,6 +18,8 @@ This custom integration allows you to monitor and interact with your BYD HVS Bat
   - [Setup via the User Interface](#setup-via-the-user-interface)
   - [Options](#options)
 - [Provided Sensors](#provided-sensors)
+- [Firmware Update Check](#firmware-update-check)
+- [Network / Privacy](#network--privacy)
 - [Troubleshooting](#troubleshooting)
 - [Upgrading from 0.4.14](#upgrading-from-0414)
 - [Cleanup of Duplicate Entities](#cleanup-of-duplicate-entities)
@@ -31,6 +33,7 @@ This custom integration allows you to monitor and interact with your BYD HVS Bat
 - **Cell-Level Details**: Monitor individual cell voltages and temperatures for detailed analysis.
 - **Customizable Scan Interval**: Configure how frequently the integration polls data from the battery.
 - **Error Handling**: Detailed error messages and robust handling of connection issues.
+- **Firmware Update Check (optional)**: Two update entities show whether BYD offers newer BMU/BMS firmware. They are disabled by default; enabling them makes Home Assistant contact a BYD server once a day, see [Network / Privacy](#network--privacy).
 - **Module Aggregation (new)**
   Each module is represented as a **single entity** containing all cell values as attributes:
   - **State:** Total summed module voltage (mV)
@@ -142,6 +145,33 @@ The integration provides the following sensors:
 - ETA (charge/discharge efficiency, total and per tower), shown with 1 decimal
 - All numeric sensors come with a default display precision that matches the resolution delivered by the battery (e.g. cell voltages in whole mV, temperatures in whole °C, current 0.1 A). You can change it per entity in the entity settings.
 - Tower Balancing Status: hex bitmask of the cells that are currently balancing (one bit per cell). It is a **diagnostic** entity and disabled by default for new installations; the Balancing Count sensor shows the number of balancing cells.
+
+## Firmware Update Check
+
+The integration provides two **update** entities on the battery device:
+
+| Entity | Installed version | Latest version |
+|---|---|---|
+| `update.byd_bmu_firmware` (BYD BMU Firmware) | BMU firmware read from the battery | newest BMU firmware offered by BYD |
+| `update.byd_bms_firmware` (BYD BMS Firmware) | BMS firmware read from the battery | newest BMS firmware offered by BYD |
+
+- Both entities are **diagnostic** entities and **disabled by default**. Enable them under *Settings → Devices & Services → BYD HVS Battery → device → Entities* (show disabled entities). **Enabling an entity is the opt-in for the online check** described in [Network / Privacy](#network--privacy). While both entities are disabled, no request is sent.
+- The installed version is shown without the flash bank suffix: `V3.31-B` is shown as `3.31`. `A`/`B` is the active firmware bank of the battery, not a different firmware.
+- The latest version is taken from the firmware line that matches the installed one (`3.x` for HVS/HVM/HVL, `1.x` for LVS/LVL) and compared numerically.
+- The firmware **cannot be installed from Home Assistant**. Updates are only possible with the BYD **Be Connect** app (or the Be Connect Plus PC tool) while connected to the battery.
+- **Before updating**, ask your installer and check the community, e.g. the [BYD HVS Firmware-Update thread on photovoltaikforum.com](https://www.photovoltaikforum.com/thread/150898-byd-hvs-firmware-update/). Since BMS 3.31 there are reports of more aggressive cell balancing, and not every inverter manufacturer officially supports the newest firmware. BYD does not publish changelogs.
+- If the BYD server cannot be reached, the last known version is kept (also across restarts) and a single warning is logged. If no version is known yet, the entity state is *unknown*.
+- Battery-Box HVS+/HVB are not covered (different firmware line).
+
+## Network / Privacy
+
+- **By default the integration only talks to your battery in your local network** (TCP, port 8080). Nothing is sent to the internet.
+- **Only if you enable at least one firmware update entity** ([Firmware Update Check](#firmware-update-check)), Home Assistant additionally sends **one HTTPS request per day** (plus at most one after a restart if the last check is older than 24 hours) to BYD:
+  - `POST https://deapp.byd.com/api/V1/Http2/GetFileNewLink` with the fixed body `{"SoftVersion":"V1.0"}`
+  - The response is the list of firmware files BYD offers for download. Only the version numbers are read; no firmware is downloaded.
+  - **No serial number, no device data and no measurements are sent.** BYD can see the public IP address of your Home Assistant, as with any internet request.
+- This is the server the BYD Be Connect apps use. It is **not an official, documented API**. BYD may change or remove it at any time; the entities then keep the last known version.
+- To stop the online check, disable both firmware update entities again.
 
 ## Troubleshooting
 

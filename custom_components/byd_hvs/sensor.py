@@ -24,6 +24,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -40,6 +41,7 @@ from .const import (
     SHOW_RESET_COUNTER,
     SHOW_TOWERS,
     AGGREGATE_MODULES,
+    signal_coordinator_ready,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -489,6 +491,9 @@ async def async_setup_entry(
     _async_migrate_orphan_entities(hass, config_entry, serial)
 
     hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
+    hass.data[DOMAIN][config_entry.entry_id]["battery"] = byd_hvs
+    # Let the firmware update entities pick up the installed versions.
+    async_dispatcher_send(hass, signal_coordinator_ready(config_entry.entry_id))
 
     sensors: list[SensorEntity] = []
 
