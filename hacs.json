@@ -1,7 +1,7 @@
 {
   "name": "BYD HVS/HMS/LVS Battery",
   "content_in_root": false,
-  "homeassistant": "2021.6.0",
+  "homeassistant": "2022.8.0",
   "render_readme": false,
   "zip_release": false
 }

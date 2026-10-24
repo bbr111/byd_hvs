@@ -22,6 +22,7 @@ This custom integration allows you to monitor and interact with your BYD HVS Bat
 - [Network / Privacy](#network--privacy)
 - [Troubleshooting](#troubleshooting)
 - [Upgrading from 0.4.14](#upgrading-from-0414)
+- [Entity names and entity IDs](#entity-names-and-entity-ids)
 - [Cleanup of Duplicate Entities](#cleanup-of-duplicate-entities)
 - [Known Issues](#known-issues)
 - [Contributing](#contributing)
@@ -221,15 +222,27 @@ Update to **0.4.15** or later and restart Home Assistant:
 - The empty device "BYD Battery " without a serial number is removed.
 - Entity IDs with a `_2` suffix are **not** renamed automatically. To reconnect dashboards, automations and history, rename them back manually: Settings → Devices & Services → Entities → select the entity → ⚙️ Settings → **Entity ID** (e.g. `sensor.byd_battery_temperature_2` → `sensor.byd_battery_temperature`).
 
+## Entity names and entity IDs
+
+Since Home Assistant 2026.4, entities of integrations that do not use the modern naming scheme get the device name in front of their name. This led to doubled names such as "BYD Battery P030… BYD Battery Temperature" and, for newly created entities, doubled entity IDs such as `sensor.byd_battery_byd_battery_temperature` or `sensor.byd_battery_p030…_byd_battery_temperature`.
+
+The integration now uses the modern naming scheme:
+
+- **Friendly names** are "<device name> <sensor name>", e.g. "BYD Battery P030… Temperature", "BYD Battery P030… Cell Voltage Tower 1 Cell 01". Names you set yourself are kept.
+- **Entity IDs of existing entities do not change.** New entities get the historic scheme `sensor.byd_<name>`, e.g. `sensor.byd_battery_temperature`, `sensor.byd_cell_voltage_tower_1_cell_01`. A second battery gets Home Assistant's `_2` suffix.
+- **Doubled entity IDs are repaired automatically** on startup: `sensor.byd_battery_byd_<name>` and `sensor.byd_battery_<serial>_byd_<name>` are renamed back to `sensor.byd_<name>` if that ID is free (the log shows a warning per renamed entity). Because the old history is still stored under the historic ID, it is connected again. Entity IDs you customized are never touched.
+
+> [!WARNING]
+> Automations, templates or cards that match entities by their **friendly name** (e.g. "BYD Battery Temperature") need to be updated. References by entity ID keep working.
+
 ## Cleanup of Duplicate Entities
 
 Older versions could register sensors without the battery serial number (unique_id `byd__<sensor>`) when the battery was not reachable during startup, and register them again with the serial number after a later restart. This left orphaned duplicates behind; the newer entities usually got a `_2` suffix (e.g. `sensor.byd_state_of_charge_2`).
 
 On startup, once the serial number is known, the integration now cleans these up automatically:
 
-- The old entity is migrated to the new unique_id. Its entity_id, history and customizations are kept.
-- If a duplicate with the serial number exists as well (usually the one with the `_2` suffix), it is removed first. A warning in the log names the removed and the kept entity_id.
-- Exception (since 0.4.15): if the old entity is disabled but the duplicate is enabled, the working duplicate is kept and the old entity is removed.
+- Without a duplicate, the old entity is migrated to the new unique_id. Its entity_id, history and customizations are kept.
+- If a duplicate with the serial number exists as well, the entity that still has the historic entity ID (`sensor.byd_<name>`, without `_2` suffix) is kept and the other one is removed. If neither has it, an enabled entity is preferred over a disabled one, and otherwise the entity with the serial number is kept (orphans created by Home Assistant 2026.4+ have doubled entity IDs and are not the originals). A warning in the log names the removed and the kept entity_id.
 
 If automations, scripts or dashboards referenced the removed `_2` entity, update them to the original entity_id named in the log. The history recorded only on the `_2` entity is not carried over.
 
