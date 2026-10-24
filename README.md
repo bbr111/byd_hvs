@@ -152,8 +152,8 @@ The integration provides two **update** entities on the battery device:
 
 | Entity | Installed version | Latest version |
 |---|---|---|
-| `update.byd_bmu_firmware` (BYD BMU Firmware) | BMU firmware read from the battery | newest BMU firmware offered by BYD |
-| `update.byd_bms_firmware` (BYD BMS Firmware) | BMS firmware read from the battery | newest BMS firmware offered by BYD |
+| `update.byd_bmu_firmware` (BYD Battery <serial> BMU Firmware) | BMU firmware read from the battery | newest BMU firmware offered by BYD |
+| `update.byd_bms_firmware` (BYD Battery <serial> BMS Firmware) | BMS firmware read from the battery | newest BMS firmware offered by BYD |
 
 - Both entities are **diagnostic** entities and **disabled by default**. Enable them under *Settings → Devices & Services → BYD HVS Battery → device → Entities* (show disabled entities). **Enabling an entity is the opt-in for the online check** described in [Network / Privacy](#network--privacy). While both entities are disabled, no request is sent.
 - The installed version is shown without the flash bank suffix: `V3.31-B` is shown as `3.31`. `A`/`B` is the active firmware bank of the battery, not a different firmware.

@@ -74,8 +74,8 @@ _INSTALLED_RE = re.compile(r"^\s*V?(?P<major>\d+)\.(?P<minor>\d+)")
 LINE_BY_MAJOR = {3: "P3", 1: "P2"}
 
 FIRMWARE_TYPES = {
-    "bmu": ("BMU", "bmu_firmware", "BYD BMU Firmware"),
-    "bms": ("BMS", "bms_firmware", "BYD BMS Firmware"),
+    "bmu": ("BMU", "bmu_firmware", "BMU Firmware"),
+    "bms": ("BMS", "bms_firmware", "BMS Firmware"),
 }
 
 Version = tuple[int, int]
@@ -241,6 +241,7 @@ class BYDFirmwareUpdateEntity(CoordinatorEntity[BYDFirmwareCoordinator], UpdateE
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_entity_registry_enabled_default = False
+    _attr_has_entity_name = True  # "BYD Battery <serial> BMU Firmware"
     _attr_icon = "mdi:chip"
     _attr_release_url = RELEASE_URL
     _attr_release_summary = RELEASE_SUMMARY
@@ -260,6 +261,9 @@ class BYDFirmwareUpdateEntity(CoordinatorEntity[BYDFirmwareCoordinator], UpdateE
         self._subscribed_to: DataUpdateCoordinator | None = None
         self._kind, self._data_key, self._attr_name = FIRMWARE_TYPES[key]
         self._attr_unique_id = f"byd_{serial}_{key}_firmware_update"
+        # Historic entity_id scheme (update.byd_bmu_firmware); Home Assistant
+        # would otherwise prefix the device name to new entity ids.
+        self.entity_id = f"update.byd_{key}_firmware"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, serial)},
             "name": f"BYD Battery {serial}",
