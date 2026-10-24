@@ -234,6 +234,43 @@ TOWER_SENSOR_TYPES = {
 }
 
 
+# Default display precision per sensor type, matching the resolution bydhvs
+# delivers (see the Modbus scaling in bydhvs). Text, hex and count sensors
+# have none. Users can still override it in the entity settings.
+SENSOR_PRECISION = {
+    "soc": 0,  # integer %
+    "power": 0,  # W, current (0.1 A) x voltage (0.1 V)
+    "max_voltage": 2,  # V, /100 (highest cell voltage)
+    "min_voltage": 2,  # V, /100 (lowest cell voltage)
+    "current": 1,  # A, /10
+    "battery_voltage": 1,  # V, /100 rounded to 0.1 by bydhvs
+    "max_temperature": 0,  # integer °C
+    "min_temperature": 0,
+    "battery_temperature": 0,
+    "voltage_difference": 3,  # V, difference of /100 values
+    "soh": 0,  # integer %
+    "output_voltage": 1,  # V, /100 rounded to 0.1 by bydhvs
+    "charge_total": 1,  # kWh, /10
+    "discharge_total": 1,  # kWh, /10
+    "eta": 1,  # %, calculated
+}
+
+TOWER_SENSOR_PRECISION = {
+    "max_cell_voltage_mv": 0,  # integer mV
+    "min_cell_voltage_mv": 0,
+    "max_cell_temp": 0,  # integer °C
+    "min_cell_temp": 0,
+    "charge_total": 3,  # kWh, /1000 (Wh resolution)
+    "discharge_total": 3,
+    "eta": 1,  # %, calculated
+    "battery_volt": 1,  # V, /10
+    "out_volt": 1,  # V, /10
+    "current": 1,  # A, /10
+    "hvs_soc_diagnosis": 1,  # %, /10
+    "soh": 0,  # integer %
+}
+
+
 def _plausible_count(
     available: int, total: int | None, per_module: int | None, modules: int | None
 ) -> int:
@@ -922,9 +959,16 @@ class BYDBatterySensor(BYDBaseSensor):
             self._attr_native_unit_of_measurement = SENSOR_TYPES[sensor_type][2]
             self._attr_device_class = SENSOR_TYPES[sensor_type][3]
 
-        if sensor_type == "eta":
-            self._attr_suggested_display_precision = 1
-        elif sensor_category == "tower" and sensor_type == "balancing_status":
+        if sensor_category in CELL_CATEGORIES:
+            # Integer mV / integer °C from bydhvs.
+            self._attr_suggested_display_precision = 0
+        elif sensor_category == "tower":
+            if (precision := TOWER_SENSOR_PRECISION.get(sensor_type)) is not None:
+                self._attr_suggested_display_precision = precision
+        elif (precision := SENSOR_PRECISION.get(sensor_type)) is not None:
+            self._attr_suggested_display_precision = precision
+
+        if sensor_category == "tower" and sensor_type == "balancing_status":
             # Raw hex bitmask of the balancing cells, mainly for diagnostics.
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
             self._attr_entity_registry_enabled_default = False
@@ -1043,6 +1087,7 @@ class BYDModuleAggregateSensor(BYDBaseSensor):
         self._icon = "mdi:battery"
         self._attr_native_unit_of_measurement = UnitOfElectricPotential.MILLIVOLT
         self._attr_device_class = SensorDeviceClass.VOLTAGE
+        self._attr_suggested_display_precision = 0  # sum of integer mV
 
     @property
     def name(self):
