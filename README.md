@@ -169,7 +169,7 @@ The integration provides two **update** entities on the battery device:
 ## Network / Privacy
 
 - **By default the integration only talks to your battery in your local network** (TCP, port 8080). Nothing is sent to the internet.
-- **Only if you enable at least one firmware update entity** ([Firmware Update Check](#firmware-update-check)), Home Assistant additionally sends **one HTTPS request per day** (plus at most one after a restart if the last check is older than 24 hours) to BYD:
+- **Only if you enable at least one firmware update entity** ([Firmware Update Check](#firmware-update-check)), Home Assistant additionally sends **one HTTPS request per day** (plus at most one after a restart if the last check is older than 24 hours, and one per manual check) to BYD:
   - `POST https://deapp.byd.com/api/V1/Http2/GetFileNewLink` with the fixed body `{"SoftVersion":"V1.0"}`
   - The response is the list of firmware files BYD offers for download. Only the version numbers are read; no firmware is downloaded.
   - **No serial number, no device data and no measurements are sent.** BYD can see the public IP address of your Home Assistant, as with any internet request.
