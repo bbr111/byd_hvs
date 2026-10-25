@@ -162,6 +162,8 @@ The integration provides two **update** entities on the battery device:
 - The firmware **cannot be installed from Home Assistant**. Updates are only possible with the BYD **Be Connect** app (or the Be Connect Plus PC tool) while connected to the battery.
 - **Before updating**, ask your installer and check the community, e.g. the [BYD HVS Firmware-Update thread on photovoltaikforum.com](https://www.photovoltaikforum.com/thread/150898-byd-hvs-firmware-update/). Since BMS 3.31 there are reports of more aggressive cell balancing, and not every inverter manufacturer officially supports the newest firmware. BYD does not publish changelogs.
 - If the BYD server cannot be reached, the last known version is kept (also across restarts) and a single warning is logged. If no version is known yet, the entity state is *unknown*.
+- The attribute `last_check` shows the time of the last **successful** check (ISO timestamp in UTC). It is not updated by failed attempts.
+- To check immediately instead of waiting for the daily check, call the action `homeassistant.update_entity` with `update.byd_bmu_firmware` or `update.byd_bms_firmware` as target (e.g. in *Developer tools → Actions*, a script or a dashboard button).
 - Battery-Box HVS+/HVB are not covered (different firmware line).
 
 ## Network / Privacy
