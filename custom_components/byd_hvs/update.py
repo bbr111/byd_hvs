@@ -260,6 +260,9 @@ class BYDFirmwareUpdateEntity(CoordinatorEntity[BYDFirmwareCoordinator], UpdateE
         self._battery_unsub: Callable[[], None] | None = None
         self._subscribed_to: DataUpdateCoordinator | None = None
         self._kind, self._data_key, self._attr_name = FIRMWARE_TYPES[key]
+        # Shown in Settings -> Updates next to the version; without it both
+        # entries only show the (identical) device name.
+        self._attr_title = self._attr_name
         self._attr_unique_id = f"byd_{serial}_{key}_firmware_update"
         # Historic entity_id scheme (update.byd_bmu_firmware); Home Assistant
         # would otherwise prefix the device name to new entity ids.

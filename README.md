@@ -164,6 +164,28 @@ The integration provides two **update** entities on the battery device:
 - If the BYD server cannot be reached, the last known version is kept (also across restarts) and a single warning is logged. If no version is known yet, the entity state is *unknown*.
 - The attribute `last_check` shows the time of the last **successful** check (ISO timestamp in UTC). It is not updated by failed attempts.
 - To check immediately instead of waiting for the daily check, call the action `homeassistant.update_entity` with `update.byd_bmu_firmware` or `update.byd_bms_firmware` as target (e.g. in *Developer tools → Actions*, a script or a dashboard button).
+- Because the firmware cannot be installed from Home Assistant, a new version is listed under *Settings → Updates* as a **not installable update**. Home Assistant shows **no badge in the sidebar and no notification** for such updates. To get notified, use an automation, for example:
+
+  ```yaml
+  alias: BYD firmware update available
+  triggers:
+    - trigger: state
+      entity_id:
+        - update.byd_bmu_firmware
+        - update.byd_bms_firmware
+      from: "off"
+      to: "on"
+  actions:
+    - action: notify.notify
+      data:
+        title: BYD firmware update
+        message: >
+          {{ state_attr(trigger.entity_id, 'title') }}:
+          {{ state_attr(trigger.entity_id, 'installed_version') }} →
+          {{ state_attr(trigger.entity_id, 'latest_version') }}
+  ```
+
+  Replace `notify.notify` with your own notify action (e.g. `notify.mobile_app_<your_phone>`).
 - Battery-Box HVS+/HVB are not covered (different firmware line).
 
 ## Network / Privacy
